@@ -228,4 +228,4 @@ def flex_today_records(user_id, records):
             }
         }
     }
-    return FlexSendMessage(alt_text="今日紀錄", contents=flex)_
+    return FlexSendMessage(alt_text="今日紀錄", contents=flex)
