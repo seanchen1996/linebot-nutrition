@@ -17,5 +17,13 @@
       "fat": 64.0,
       "carb": 256.0
     }
+  },
+  "nutrition": {
+    "厚豆花": {
+      "portion": 1.0,
+      "protein": 6.2,
+      "fat": 3.3,
+      "carb": 12.4
+    }
   }
 }
