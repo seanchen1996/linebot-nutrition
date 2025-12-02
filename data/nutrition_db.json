@@ -121,6 +121,14 @@
         "fat": 9.8,
         "carb": 7.9,
         "timestamp": "2025-12-02 19:53:12"
+      },
+      {
+        "food": "redbull",
+        "amount": 1.0,
+        "protein": 0.0,
+        "fat": 0.0,
+        "carb": 26.8,
+        "timestamp": "2025-12-02 19:53:25"
       }
     ]
   }
