@@ -1,7 +1,7 @@
 # app.py
 from fastapi import FastAPI, Request
 from linebot import LineBotApi, WebhookHandler
-from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage
+from linebot.models import MessageEvent, TextMessage, TextSendMessage
 from linebot.exceptions import InvalidSignatureError
 import json, os, requests
 
@@ -10,7 +10,7 @@ app = FastAPI()
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-GITHUB_REPO = os.getenv("GITHUB_REPO")  # user/repo
+GITHUB_REPO = os.getenv("GITHUB_REPO")
 GITHUB_DATA_PATH = "data.json"
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
@@ -22,7 +22,7 @@ class GitHubStorage:
         self.token = token
         self.repo = repo
         self.path = path
-        # 初始化 data.json
+        # 初始化
         if not self._file_exists():
             self._save_state({"users": {}, "food_db": {}})
 
@@ -55,15 +55,11 @@ class GitHubStorage:
 
     def _save_state(self, state, msg="update"):
         url = f"https://api.github.com/repos/{self.repo}/contents/{self.path}"
-        # 先取得 sha
         r = requests.get(url, headers={"Authorization": f"token {self.token}"})
         sha = r.json().get("sha") if r.status_code == 200 else None
         import base64
         content = base64.b64encode(json.dumps(state, ensure_ascii=False).encode()).decode()
-        data = {
-            "message": msg,
-            "content": content
-        }
+        data = {"message": msg, "content": content}
         if sha:
             data["sha"] = sha
         r2 = requests.put(url, headers={"Authorization": f"token {self.token}"}, json=data)
@@ -77,16 +73,9 @@ class GitHubStorage:
         state["users"][user_id]["target"] = {"protein": protein, "fat": fat, "carb": carb}
         self._save_state(state, f"Set target for {user_id}")
 
-    def add_food(self, user_id, name, protein, fat, carb):
+    def get_user_target(self, user_id):
         state = self._read_state()
-        state["users"].setdefault(user_id, {})
-        state["users"][user_id].setdefault("today", [])
-        state["users"][user_id]["today"].append({"name": name, "protein": protein, "fat": fat, "carb": carb})
-        self._save_state(state, f"Add food {name} for {user_id}")
-
-    def list_foods(self):
-        state = self._read_state()
-        return state.get("food_db", {})
+        return state["users"].get(user_id, {}).get("target", {})
 
     def add_food_db(self, name, weight, protein, fat, carb):
         state = self._read_state()
@@ -94,13 +83,20 @@ class GitHubStorage:
         state["food_db"][name] = {"weight": weight, "protein": protein, "fat": fat, "carb": carb}
         self._save_state(state, f"Add food_db {name}")
 
+    def list_foods(self):
+        state = self._read_state()
+        return state.get("food_db", {})
+
+    def add_food(self, user_id, name, protein, fat, carb):
+        state = self._read_state()
+        state["users"].setdefault(user_id, {})
+        state["users"][user_id].setdefault("today", [])
+        state["users"][user_id]["today"].append({"name": name, "protein": protein, "fat": fat, "carb": carb})
+        self._save_state(state, f"Add food {name} for {user_id}")
+
     def get_user_today(self, user_id):
         state = self._read_state()
         return state["users"].get(user_id, {}).get("today", [])
-
-    def get_user_target(self, user_id):
-        state = self._read_state()
-        return state["users"].get(user_id, {}).get("target", {})
 
     def clear_user_today(self, user_id):
         state = self._read_state()
@@ -118,14 +114,14 @@ def is_number(s):
     except:
         return False
 
-def parse_text(user_id, text, request_base_url=""):
+def parse_text(user_id, text):
     text = text.strip()
     if not text:
         return None
     parts = text.split()
     cmd = parts[0]
 
-    # ---------------- 目標 ----------------
+    # 目標
     if cmd == "目標":
         if len(parts) != 4 or not all(is_number(p) for p in parts[1:]):
             return "目標格式錯誤，請輸入數字"
@@ -133,7 +129,7 @@ def parse_text(user_id, text, request_base_url=""):
         storage.set_user_target(user_id, protein, fat, carb)
         return f"已設定每日目標：蛋白質 {protein}, 脂肪 {fat}, 碳水 {carb}"
 
-    # ---------------- 新增食物 ----------------
+    # 新增
     if cmd == "新增":
         if len(parts) != 6 or not all(is_number(p) for p in parts[2:]):
             return "新增格式錯誤，請輸入數字"
@@ -142,7 +138,7 @@ def parse_text(user_id, text, request_base_url=""):
         storage.add_food_db(name, weight, protein, fat, carb)
         return f"食物 {name} 已加入資料庫"
 
-    # ---------------- 使用資料庫累計 ----------------
+    # 使用資料庫累計
     foods_db = storage.list_foods()
     if len(parts) == 2 and parts[0] in foods_db and is_number(parts[1]):
         name = parts[0]
@@ -152,7 +148,7 @@ def parse_text(user_id, text, request_base_url=""):
         storage.add_food(user_id, name, data["protein"]*ratio, data["fat"]*ratio, data["carb"]*ratio)
         return f"{name} {qty} 已加入今日紀錄"
 
-    # ---------------- 今日累計 ----------------
+    # 今日累計
     if cmd in ["今日", "今日累計", "今日累積"]:
         today = storage.get_user_today(user_id)
         if not today:
@@ -160,15 +156,14 @@ def parse_text(user_id, text, request_base_url=""):
         total_p = sum(f["protein"] for f in today)
         total_f = sum(f["fat"] for f in today)
         total_c = sum(f["carb"] for f in today)
-        msg = f"今日累計：蛋白質 {total_p:.1f}, 脂肪 {total_f:.1f}, 碳水 {total_c:.1f}"
-        return msg
+        return f"今日累計：蛋白質 {total_p:.1f}, 脂肪 {total_f:.1f}, 碳水 {total_c:.1f}"
 
-    # ---------------- 清除 ----------------
+    # 清除
     if cmd in ["清除", "清除今日"]:
         storage.clear_user_today(user_id)
         return "已清除今日紀錄"
 
-    # ---------------- 幫助 ----------------
+    # 幫助
     if cmd in ["help", "幫助"]:
         return "用法:\n目標 [蛋白質] [脂肪] [碳水]\n新增 [食物] [重量] [蛋白] [脂肪] [碳水]\n[食物] [重量]\n今日/今日累計/今日累積\n清除/清除今日"
 
