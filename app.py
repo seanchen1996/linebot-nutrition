@@ -2,7 +2,7 @@ import json
 import os
 from fastapi import FastAPI, Request
 from linebot import LineBotApi, WebhookHandler
-from linebot.models import TextSendMessage
+from linebot.models import TextSendMessage, MessageEvent, TextMessage
 
 app = FastAPI()
 
@@ -87,10 +87,10 @@ async def callback(request: Request):
     try:
         handler.handle(body.decode(), signature)
     except Exception as e:
-        print(e)
+        print("LINE handler error:", e)
     return "OK"
 
-@handler.add("message")
+@handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     user_id = event.source.user_id
     text = event.message.text.strip()
