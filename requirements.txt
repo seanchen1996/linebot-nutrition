@@ -3,5 +3,6 @@ uvicorn==0.22.0
 line-bot-sdk==3.11.0
 pymongo[srv]==4.6.1
 requests==2.31.0
-pillow==9.5.0
 python-dotenv==1.0.1
+# 不再使用 pillow
+# matplotlib 也暫時不用
