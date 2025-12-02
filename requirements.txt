@@ -1,3 +1,7 @@
 fastapi
 uvicorn
 line-bot-sdk
+pymongo    # 若使用 MongoDB
+requests   # 用於呼叫 GitHub API
+matplotlib
+pillow
