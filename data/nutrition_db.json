@@ -1,14 +1,21 @@
 {
-    "燕麥": {
-        "portion": 37.5,
-        "protein": 4.9,
-        "fat": 3,
-        "carb": 25.3
-    },
-    "雞胸肉": {
-        "portion": 100,
-        "protein": 23,
-        "fat": 2,
-        "carb": 0
+  "燕麥": {
+    "portion": 37.5,
+    "protein": 4.9,
+    "fat": 3,
+    "carb": 25.3
+  },
+  "雞胸肉": {
+    "portion": 100,
+    "protein": 23,
+    "fat": 2,
+    "carb": 0
+  },
+  "goals": {
+    "Ubdcf5bb80ad7849d4c7f4b4031215979": {
+      "protein": 128.0,
+      "fat": 64.0,
+      "carb": 256.0
     }
+  }
 }
