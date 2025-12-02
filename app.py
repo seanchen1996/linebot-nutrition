@@ -252,6 +252,10 @@ def parse_and_execute(user_id: str, text: str) -> Optional[Any]:
     text = text.strip()
     parts = text.split()
     cmd = parts[0]
+    # HELP
+    if cmd in ["Hi", "hi", "Hello", "你好"]:
+
+        return "Hi"
 
     # HELP
     if cmd in ["help", "Help", "幫助", "救我"]:
