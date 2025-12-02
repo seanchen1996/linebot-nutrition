@@ -1,451 +1,258 @@
 # app.py
 import os
 import json
-import subprocess
 from datetime import datetime
-from zoneinfo import ZoneInfo
 from threading import Lock
 from typing import Optional, Dict, Any, List
-
 from fastapi import FastAPI, Request
 from linebot import LineBotApi, WebhookHandler
-from linebot.models import (
-    MessageEvent,
-    TextMessage,
-    TextSendMessage,
-    FlexSendMessage,
-)
-from linebot.exceptions import InvalidSignatureError, LineBotApiError
+from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage
+from linebot.exceptions import InvalidSignatureError
+import requests
+import base64
 
 # ------------ Config ------------
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET", "")
 
-NUTRITION_DB_FILE = "nutrition_db.json"
-TODAY_DB_FILE = "today_db.json"
-GOALS_DB_FILE = "goals.json"
-
-GITHUB_ENABLED = True     # ← 若不要自動 push 改為 False
-GITHUB_COMMIT_USER = "NutritionBot"
-GITHUB_COMMIT_EMAIL = "bot@example.com"
-
-# ------------ Git Sync Helper ------------
-def git_sync(commit_msg: str):
-    """Auto git add/commit/push. Safe even if running on Render."""
-    if not GITHUB_ENABLED:
-        return
-
-    try:
-        subprocess.run(["git", "config", "user.name", GITHUB_COMMIT_USER], check=True)
-        subprocess.run(["git", "config", "user.email", GITHUB_COMMIT_EMAIL], check=True)
-
-        subprocess.run(["git", "add", "."], check=True)
-        subprocess.run(["git", "commit", "-m", commit_msg], check=False)
-        subprocess.run(["git", "push", "origin", "main"], check=False)
-
-    except Exception as e:
-        print("Git sync failed:", e)
-
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
+GITHUB_REPO = os.getenv("GITHUB_REPO", "").strip()
+GITHUB_DATA_PATH = os.getenv("GITHUB_DATA_PATH", "nutrition_db.json").strip()
 
 # ------------ Line client & FastAPI ------------
 app = FastAPI()
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# ------------ Thread-safety for file operations ------------
-file_lock = Lock()
+# ------------ Thread-safety for storage ------------
+lock = Lock()
 
-# ------------ JSON helpers ------------
-def load_json_safe(path: str, default: Any) -> Any:
-    with file_lock:
-        if not os.path.exists(path):
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(default, f, ensure_ascii=False, indent=2)
-            git_sync(f"create {path}")
-            return default
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(default, f, ensure_ascii=False, indent=2)
-            git_sync(f"repair {path}")
-            return default
+# ------------ GitHub JSON Storage class ------------
+class GitHubStorage:
+    """
+    Store all DBs in a single JSON in GitHub repo
+    schema: {"nutrition":{}, "today":{}, "goals":{}}
+    """
+    def __init__(self, token, repo, path):
+        self.token = token
+        self.repo = repo
+        self.path = path
+        self.headers = {"Authorization": f"token {self.token}", "Accept": "application/vnd.github.v3+json"}
+        # ensure file exists
+        if not self._get_file():
+            self._write_file({"nutrition": {}, "today": {}, "goals": {}}, "init db")
 
+    def _get_file(self):
+        url = f"https://api.github.com/repos/{self.repo}/contents/{self.path}"
+        r = requests.get(url, headers=self.headers)
+        if r.status_code == 200:
+            return r.json()
+        return None
 
-def save_json_safe(path: str, data: Any) -> None:
-    with file_lock:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+    def _write_file(self, data: dict, message="update"):
+        url = f"https://api.github.com/repos/{self.repo}/contents/{self.path}"
+        content = json.dumps(data, ensure_ascii=False, indent=2)
+        payload = {"message": message, "content": base64.b64encode(content.encode("utf-8")).decode("utf-8")}
+        current = self._get_file()
+        if current:
+            payload["sha"] = current["sha"]
+        r = requests.put(url, headers=self.headers, json=payload)
+        if r.status_code not in (200,201):
+            raise Exception(f"GitHub save failed: {r.status_code} {r.text}")
+        return r.json()
 
-    git_sync(f"update {path}")
+    def load(self):
+        with lock:
+            f = self._get_file()
+            if not f:
+                return {"nutrition": {}, "today": {}, "goals": {}}
+            content = base64.b64decode(f["content"]).decode("utf-8")
+            return json.loads(content)
 
+    def save(self, state: dict):
+        with lock:
+            self._write_file(state, "update data")
 
-# ------------ Time helper ------------
-def now_taipei_str() -> str:
-    tz = ZoneInfo("Asia/Taipei")
-    return datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
+# ------------ Select storage ------------
+if GITHUB_TOKEN and GITHUB_REPO and GITHUB_DATA_PATH:
+    storage = GitHubStorage(GITHUB_TOKEN, GITHUB_REPO, GITHUB_DATA_PATH)
+    print("Using GitHub storage")
+else:
+    # fallback local
+    STORAGE_FILE = "local_db.json"
+    class LocalStorage:
+        def load(self):
+            with lock:
+                if not os.path.exists(STORAGE_FILE):
+                    default = {"nutrition": {}, "today": {}, "goals": {}}
+                    with open(STORAGE_FILE, "w", encoding="utf-8") as f:
+                        json.dump(default, f, ensure_ascii=False, indent=2)
+                    return default
+                try:
+                    with open(STORAGE_FILE, "r", encoding="utf-8") as f:
+                        return json.load(f)
+                except:
+                    default = {"nutrition": {}, "today": {}, "goals": {}}
+                    with open(STORAGE_FILE, "w", encoding="utf-8") as f:
+                        json.dump(default, f, ensure_ascii=False, indent=2)
+                    return default
+        def save(self, state):
+            with lock:
+                with open(STORAGE_FILE, "w", encoding="utf-8") as f:
+                    json.dump(state, f, ensure_ascii=False, indent=2)
+    storage = LocalStorage()
+    print("Using local storage")
 
-# ------------ Storage operations ------------
-def get_nutrition_db() -> Dict[str, Dict[str, float]]:
-    return load_json_safe(NUTRITION_DB_FILE, {})
+# ------------ Helpers ------------
+def now_str():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-def save_nutrition_db(db: Dict[str, Dict[str, float]]) -> None:
-    save_json_safe(NUTRITION_DB_FILE, db)
+def get_db():
+    state = storage.load()
+    return state
 
-def get_today_db() -> Dict[str, List[Dict[str, Any]]]:
-    return load_json_safe(TODAY_DB_FILE, {})
+def save_db(state):
+    storage.save(state)
 
-def save_today_db(db: Dict[str, List[Dict[str, Any]]]) -> None:
-    save_json_safe(TODAY_DB_FILE, db)
-
-def get_goals_db() -> Dict[str, Dict[str, float]]:
-    return load_json_safe(GOALS_DB_FILE, {})
-
-def save_goals_db(db: Dict[str, Dict[str, float]]) -> None:
-    save_json_safe(GOALS_DB_FILE, db)
-
-# ------------ Business logic helpers ------------
+# ------------ Business logic ------------
 def set_goal(user_id: str, protein: float, fat: float, carb: float) -> str:
-    goals = get_goals_db()
-    goals[user_id] = {"protein": protein, "fat": fat, "carb": carb}
-    save_goals_db(goals)
-    return f"已設定目標：蛋白質 {protein}g，脂肪 {fat}g，碳水 {carb}g"
-
+    state = get_db()
+    state.setdefault("goals", {})
+    state["goals"][user_id] = {"protein": protein, "fat": fat, "carb": carb}
+    save_db(state)
+    return f"已設定目標：P {protein} F {fat} C {carb}"
 
 def add_food_to_db(name: str, portion: float, protein: float, fat: float, carb: float) -> str:
-    db = get_nutrition_db()
-    db[name] = {"portion": portion, "protein": protein, "fat": fat, "carb": carb}
-    save_nutrition_db(db)
+    state = get_db()
+    state.setdefault("nutrition", {})
+    state["nutrition"][name] = {"portion": portion, "protein": protein, "fat": fat, "carb": carb}
+    save_db(state)
     return f"已新增食物：{name} 每份 {portion}g → P:{protein} F:{fat} C:{carb}"
 
-
 def list_foods_text() -> str:
-    db = get_nutrition_db()
+    state = get_db()
+    db = state.get("nutrition", {})
     if not db:
-        return "食物資料庫目前為空。"
+        return "食物資料庫為空"
     lines = []
-    for i, (k, v) in enumerate(db.items(), start=1):
-        lines.append(f"{i}. {k} 份量 {v['portion']}g  P:{v['protein']} F:{v['fat']} C:{v['carb']}")
+    for i, (k,v) in enumerate(db.items(), start=1):
+        lines.append(f"{i}. {k} 份量 {v['portion']}g P:{v['protein']} F:{v['fat']} C:{v['carb']}")
     return "\n".join(lines)
 
-
-def record_food(user_id: str, food_name: str, grams: float) -> str:
-    db = get_nutrition_db()
-    if food_name not in db:
-        return f"找不到食物：{food_name}（請先用 新增 指令加入資料庫）"
-
-    item = db[food_name]
-    portion = float(item["portion"])
-    factor = grams / portion if portion != 0 else 0.0
-
-    protein = round(float(item["protein"]) * factor, 3)
-    fat = round(float(item["fat"]) * factor, 3)
-    carb = round(float(item["carb"]) * factor, 3)
-
-    entry = {
-        "food": food_name,
-        "amount": grams,
-        "protein": protein,
-        "fat": fat,
-        "carb": carb,
-        "timestamp": now_taipei_str()
-    }
-
-    today = get_today_db()
-    today.setdefault(user_id, [])
-
-    for r in today[user_id]:
-        if r["food"] == food_name:
+def record_food(user_id: str, name: str, grams: float) -> str:
+    state = get_db()
+    if name not in state.get("nutrition", {}):
+        return f"找不到食物：{name}，請先新增"
+    item = state["nutrition"][name]
+    factor = grams / item["portion"]
+    entry = {"food": name, "amount": grams, "protein": round(item["protein"]*factor,3),
+             "fat": round(item["fat"]*factor,3), "carb": round(item["carb"]*factor,3), "timestamp": now_str()}
+    state.setdefault("today", {}).setdefault(user_id, [])
+    # 合併相同食物
+    merged = False
+    for r in state["today"][user_id]:
+        if r["food"] == name:
             r["amount"] += grams
-            r["protein"] = round(r["protein"] + protein, 3)
-            r["fat"] = round(r["fat"] + fat, 3)
-            r["carb"] = round(r["carb"] + carb, 3)
-            save_today_db(today)
-            return f"已累計：{food_name} {grams}g（合併到現有紀錄）"
+            r["protein"] += entry["protein"]
+            r["fat"] += entry["fat"]
+            r["carb"] += entry["carb"]
+            merged = True
+            break
+    if not merged:
+        state["today"][user_id].append(entry)
+    save_db(state)
+    if merged:
+        return f"已累計 {name} {grams}g"
+    else:
+        return f"已記錄 {name} {grams}g"
 
-    today[user_id].append(entry)
-    save_today_db(today)
-    return f"已記錄：{food_name} {grams}g（P:{protein} F:{fat} C:{carb}）"
+def calc_today_summary(user_id: str) -> dict:
+    state = get_db()
+    items = state.get("today", {}).get(user_id, [])
+    total = {"protein":0.0,"fat":0.0,"carb":0.0}
+    for e in items:
+        total["protein"] += e["protein"]
+        total["fat"] += e["fat"]
+        total["carb"] += e["carb"]
+    total = {k: round(v,3) for k,v in total.items()}
+    return {"items": items, "total": total}
 
-
-def calc_today_summary(user_id: str) -> Dict[str, Any]:
-    today = get_today_db().get(user_id, [])
-    total = {"protein": 0.0, "fat": 0.0, "carb": 0.0}
-    items = []
-
-    for idx, e in enumerate(today, start=1):
-        items.append({
-            "idx": idx,
-            "food": e["food"],
-            "amount": e["amount"],
-            "protein": e["protein"],
-            "fat": e["fat"],
-            "carb": e["carb"],
-            "timestamp": e.get("timestamp", "")
-        })
-        total["protein"] += float(e.get("protein", 0))
-        total["fat"] += float(e.get("fat", 0))
-        total["carb"] += float(e.get("carb", 0))
-
-    total = {k: round(v, 3) for k, v in total.items()}
-
-    return {
-        "items": items,
-        "total": total,
-        "date": datetime.now(ZoneInfo("Asia/Taipei")).strftime("%Y-%m-%d")
-    }
-
-
-def delete_record_by_index(user_id: str, index: int) -> str:
-    today = get_today_db()
-    arr = today.get(user_id, [])
-    if not arr:
-        return "今日沒有紀錄可以刪除。"
-    if index < 0 or index >= len(arr):
-        return f"索引錯誤，請輸入 1 到 {len(arr)} 之間的數字。"
-
-    removed = arr.pop(index)
-    today[user_id] = arr
-    save_today_db(today)
-
-    return f"已刪除第 {index+1} 筆：{removed['food']} {removed['amount']}g"
-
-
-def delete_last_record(user_id: str) -> str:
-    today = get_today_db()
-    arr = today.get(user_id, [])
-
-    if not arr:
-        return "今日沒有紀錄可以刪除。"
-
-    removed = arr.pop(-1)
-    today[user_id] = arr
-    save_today_db(today)
-
-    return f"已刪除最後一筆：{removed['food']} {removed['amount']}g"
-
-
-def clear_today_records(user_id: str) -> str:
-    today = get_today_db()
-    today[user_id] = []
-    save_today_db(today)
-    return "已清除今日所有紀錄。"
-
-
-def delete_food_from_db(food_name: str) -> str:
-    db = get_nutrition_db()
-    if food_name not in db:
-        return f"資料庫沒有此食物：{food_name}"
-
-    db.pop(food_name)
-    save_nutrition_db(db)
-
-    return f"已從資料庫刪除：{food_name}"
-
-# ------------ Flex builder ------------
 def build_flex_today(user_id: str) -> FlexSendMessage:
     summary = calc_today_summary(user_id)
     items = summary["items"]
-    totals = summary["total"]
-    goals = get_goals_db().get(user_id, None)
-
-    body_contents = []
-    body_contents.append({"type": "text", "text": f"📅 今日攝取：{summary['date']}", "weight": "bold", "size": "md"})
-
+    total = summary["total"]
+    state = get_db()
+    goals = state.get("goals", {}).get(user_id)
+    body = []
+    body.append({"type":"text","text":"📅 今日紀錄","weight":"bold","size":"md"})
     if not items:
-        body_contents.append({"type": "text", "text": "今日尚無紀錄", "size": "sm"})
+        body.append({"type":"text","text":"尚無紀錄","size":"sm"})
     else:
-        for it in items:
-            body_contents.append(
-                {
-                    "type": "text",
-                    "text": f"{it['idx']}. {it['food']} {it['amount']}g — P:{it['protein']} F:{it['fat']} C:{it['carb']}",
-                    "size": "sm"
-                }
-            )
-
-    body_contents.append({"type": "text", "text": "——", "size": "sm"})
-    body_contents.append({
-        "type": "text",
-        "text": f"總計 — P:{totals['protein']} / F:{totals['fat']} / C:{totals['carb']}",
-        "size": "sm", "weight": "bold"
-    })
-
+        for i,e in enumerate(items,start=1):
+            body.append({"type":"text","text":f"{i}. {e['food']} {e['amount']}g P:{e['protein']} F:{e['fat']} C:{e['carb']}", "size":"sm"})
+    body.append({"type":"text","text":f"總計 P:{total['protein']} F:{total['fat']} C:{total['carb']}", "size":"sm","weight":"bold"})
     if goals:
-        remain_p = round(max(goals.get("protein", 0) - totals["protein"], 0), 3)
-        remain_f = round(max(goals.get("fat", 0) - totals["fat"], 0), 3)
-        remain_c = round(max(goals.get("carb", 0) - totals["carb"], 0), 3)
-
-        body_contents.append({
-            "type": "text",
-            "text": f"距離目標還需 — P:{remain_p} F:{remain_f} C:{remain_c}",
-            "size": "sm"
-        })
-
-        def pct(now, goal):
-            if not goal or goal <= 0:
-                return 0
-            return min(round(now / goal * 100), 100)
-
-        p_pct = pct(totals["protein"], goals.get("protein", 0))
-        f_pct = pct(totals["fat"], goals.get("fat", 0))
-        c_pct = pct(totals["carb"], goals.get("carb", 0))
-
-        body_contents.append({
-            "type": "text",
-            "text": f"達成率 — P:{p_pct}% F:{f_pct}% C:{c_pct}%",
-            "size": "sm"
-        })
-
-    flex = {
-        "type": "bubble",
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": body_contents
-        }
-    }
-
+        body.append({"type":"text","text":f"目標 P:{goals['protein']} F:{goals['fat']} C:{goals['carb']}", "size":"sm"})
+    flex = {"type":"bubble","body":{"type":"box","layout":"vertical","contents":body}}
     return FlexSendMessage(alt_text="今日攝取", contents=flex)
 
-
 # ------------ Command parser ------------
-def parse_and_execute(user_id: str, text: str):
-    if not text:
-        return None
+def parse_and_execute(user_id: str, text: str) -> Any:
     text = text.strip()
     parts = text.split()
+    if not parts:
+        return None
     cmd = parts[0]
-    # say hi
-    if cmd in ["hi", "Hi", "HI", "hello", "Hello"]:
-        HI_text = (
-            "HI"
-        )
-        return HI_text
-
-    # HELP
-    if cmd in ["help", "Help", "幫助", "救我"]:
-        help_text = (
-            "可用指令：\n"
-            "• 目標 [protein] [fat] [carb]\n"
-            "  例：目標 128 64 256\n"
-            "• 新增 [食物名] [份量(g)] [protein] [fat] [carb]\n"
-            "  例：新增 燕麥 37.5 4.9 3 25.3\n"
-            "• [食物名] [攝取量(g)] → 記錄今日攝取\n"
-            "  例：燕麥 20\n"
-            "• 今日 / 今日攝取 / 今日累計 / 今日累積 → 顯示今日紀錄\n"
-            "• 刪除 [編號] / 刪除 最後 / 刪除 上一筆 → 刪除今日項目\n"
-            "• 刪除今日 / 刪除全部 / 清除今日 → 清除今日所有\n"
-            "• 刪除資料庫食物 [食物名] → 從資料庫移除\n"
-            "• list / 列表 / 食物庫 / 食物列表 → 顯示資料庫"
-        )
-        return help_text
-
-    # SET GOAL
-    if cmd == "目標":
-        if len(parts) != 4:
-            return "目標格式錯誤，請輸入：目標 protein fat carb"
+    if cmd == "目標" and len(parts)==4:
         try:
-            p, f, c = map(float, parts[1:])
-        except ValueError:
-            return "目標格式錯誤，請輸入數字"
-        return set_goal(user_id, p, f, c)
-
-    # ADD FOOD
-    if cmd == "新增":
-        if len(parts) != 6:
-            return "新增格式錯誤，請輸入：新增 食物 份量(g) protein fat carb"
+            p,f,c = map(float, parts[1:])
+            return set_goal(user_id,p,f,c)
+        except:
+            return "目標格式錯誤"
+    if cmd == "新增" and len(parts)==6:
         try:
             name = parts[1]
             portion = float(parts[2])
-            p, f, c = map(float, parts[3:])
-        except ValueError:
-            return "新增格式錯誤，請確認數字"
-        return add_food_to_db(name, portion, p, f, c)
-
-    # LIST
-    if cmd.lower() in ["list", "列表", "食物列表", "食物庫", "資料庫"]:
-        return list_foods_text()
-
-    # DELETE FROM DB
-    if cmd == "刪除資料庫食物":
-        if len(parts) != 2:
-            return "請輸入：刪除資料庫食物 食物名"
-        return delete_food_from_db(parts[1])
-
-    # TODAY SUMMARY
-    if cmd in ["今日", "今日攝取", "今日累計", "今日累積"]:
-        return build_flex_today(user_id)
-
-    # CLEAR TODAY
-    if cmd in ["刪除今日", "刪除全部", "清除今日", "清除全部"]:
-        return clear_today_records(user_id)
-
-    # DELETE ITEM
-    if cmd == "刪除":
-        if len(parts) == 2:
-            arg = parts[1]
-            if arg in ["最後", "上一步", "上一筆", "最後一筆"]:
-                return delete_last_record(user_id)
-            try:
-                idx = int(arg)
-                return delete_record_by_index(user_id, idx - 1)
-            except ValueError:
-                return "刪除格式錯誤，請輸入 刪除 數字 或 刪除 最後"
-        else:
-            return "刪除格式錯誤，請輸入 刪除 編號 / 刪除 最後"
-
-    # RECORD FOOD
-    if len(parts) == 2:
-        name = parts[0]
+            p,f,c = map(float, parts[3:])
+            return add_food_to_db(name,portion,p,f,c)
+        except:
+            return "新增格式錯誤"
+    if len(parts)==2:
         try:
+            name = parts[0]
             grams = float(parts[1])
-        except ValueError:
-            grams = None
-        if grams is not None:
-            return record_food(user_id, name, grams)
+            return record_food(user_id,name,grams)
+        except:
+            return "格式錯誤"
+    if cmd in ["今日","今日累計","今日攝取"]:
+        return build_flex_today(user_id)
+    if cmd in ["list","列表","食物庫","食物列表"]:
+        return list_foods_text()
+    return "指令無效或尚未實作"
 
-    return None
-
-
-# ------------ Webhook endpoint ------------
+# ------------ LINE webhook ------------
 @app.post("/callback")
 async def callback(request: Request):
     signature = request.headers.get("X-Line-Signature", "")
-    body_bytes = await request.body()
-    body_text = body_bytes.decode("utf-8")
-
+    body = await request.body()
+    body = body.decode("utf-8")
     try:
-        handler.handle(body_text, signature)
+        handler.handle(body, signature)
     except InvalidSignatureError:
-        return {"status": "invalid signature"}, 400
-    except Exception as e:
-        print("LINE handler error:", e)
-
+        return "Invalid signature", 400
     return "OK"
 
-
-# ------------ LINE Event Handler ------------
 @handler.add(MessageEvent, message=TextMessage)
-def handle_message(event: MessageEvent):
+def handle_message(event):
     user_id = event.source.user_id
-    user_text = (event.message.text or "").strip()
+    text = event.message.text
+    result = parse_and_execute(user_id, text)
+    if isinstance(result, str):
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=result))
+    elif isinstance(result, FlexSendMessage):
+        line_bot_api.reply_message(event.reply_token, result)
 
-    try:
-        result = parse_and_execute(user_id, user_text)
-
-        if result is None:
-            return
-
-        if isinstance(result, FlexSendMessage):
-            line_bot_api.reply_message(event.reply_token, result)
-        else:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=str(result)))
-
-    except Exception as e:
-        print("Handler exception:", e)
-        try:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="發生錯誤，請稍後再試"))
-        except Exception:
-            pass
+# ------------ Run locally ------------
+if __name__=="__main__":
+    import uvicorn
+    uvicorn.run("app:app", host="0.0.0.0", port=int(os.getenv("PORT",8000)), reload=True)
