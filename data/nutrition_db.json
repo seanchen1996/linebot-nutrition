@@ -1,4 +1,12 @@
 {
   "users": {},
-  "food_db": {}
+  "food_db": {
+    "燕麥": {
+      "base_weight": 37.5,
+      "protein": 4.9,
+      "fat": 3.0,
+      "carbs": 25.3,
+      "category": "其他"
+    }
+  }
 }
