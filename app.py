@@ -1,229 +1,205 @@
 """
-app.py - LINE Bot for nutrition tracking with GitHub or MongoDB persistence,
-Flex Message, emoji completion indicator, searchable food DB, categories,
-and chart image generation.
-
-Requirements:
-- Set environment variables:
-    LINE_CHANNEL_SECRET
-    LINE_CHANNEL_ACCESS_TOKEN
-    (Either)
-    MONGO_URI
-    (Or)
-    GITHUB_TOKEN
-    GITHUB_REPO
-    GITHUB_DATA_PATH
-
-- requirements.txt should include:
-    fastapi, uvicorn, line-bot-sdk, pymongo, requests, matplotlib, pillow
-
-- Deploy to Render (or other) and set webhook to https://<your-url>/callback
-
-Note: If using GitHub storage, the app stores a JSON file at GITHUB_DATA_PATH in GITHUB_REPO.
+app.py - LINE Bot nutrition tracker
+Features:
+ - Set daily target: 目標 P F C
+ - Add food to DB: 新增 名稱 基準(g) P(g) F(g) C(g) [類別]
+ - Search foods: 搜尋 關鍵字 / 找 關鍵字
+ - List foods: 查食物 / 查詢食物 / list / 表單
+ - Record food: 名稱 重量  (e.g. 燕麥 100)
+ - Today's list: 今日列表 / 今日紀錄
+ - Today's visual: 今日累計 / 今日 / 今日累積 / 今日 累積  -> Flex + chart
+ - Delete: 刪除 <id>
+ - Clear: 清除全部 / 清除今天
+ - Help: help / 幫助
+ - Storage: MongoDB (if MONGO_URI) else GitHub (needs GITHUB_TOKEN/GITHUB_REPO/GITHUB_DATA_PATH)
+ - Chart generation: Pillow -> /chart endpoint
+Note: If incoming message doesn't match any command, the bot will not reply.
 """
 
-import os
-import json
-import time
-import math
-import io
-from typing import Optional, Dict, Any, List
-from datetime import datetime, date
-
-from fastapi import FastAPI, Request, Response, HTTPException
+import os, json, io, math, base64, traceback
+from datetime import datetime
+from typing import Optional, List, Dict, Any
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import StreamingResponse, JSONResponse
-from pydantic import BaseModel
-
-# LINE
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import (
-    MessageEvent, TextMessage, TextSendMessage, FlexSendMessage, ImageSendMessage
-)
+from linebot.models import TextSendMessage, FlexSendMessage, MessageEvent, TextMessage
+import requests
+from PIL import Image, ImageDraw, ImageFont
 
-# Optional DB libs
+# Optional pymongo
 try:
     from pymongo import MongoClient
 except Exception:
     MongoClient = None
 
-import requests
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-
 app = FastAPI()
 
-LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET", "")
-LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
-
+# env
+LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET", "").strip()
+LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "").strip()
 if not LINE_CHANNEL_SECRET or not LINE_CHANNEL_ACCESS_TOKEN:
-    raise Exception("Please set LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN env vars")
+    raise Exception("Please set LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN")
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# Storage selection
 MONGO_URI = os.getenv("MONGO_URI", "").strip()
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
 GITHUB_REPO = os.getenv("GITHUB_REPO", "").strip()
 GITHUB_DATA_PATH = os.getenv("GITHUB_DATA_PATH", "data/nutrition_db.json").strip()
-
-# App URL (optional) - used for chart image links
 APP_URL = os.getenv("APP_URL", "").strip()
 
-# ---------- Storage interface ----------
-class Storage:
-    def get_state(self) -> Dict[str, Any]:
-        raise NotImplementedError
-    def save_state(self, state: Dict[str, Any]) -> None:
-        raise NotImplementedError
+# ---------- Storage implementations ----------
+class StorageBase:
+    def set_target(self, user_id, p, f, c): raise NotImplementedError
+    def get_target(self, user_id): raise NotImplementedError
+    def add_food_db(self, food, base_weight, p, f, c, category="其他"): raise NotImplementedError
+    def get_food(self, food): raise NotImplementedError
+    def search_foods(self, keyword): raise NotImplementedError
+    def list_foods(self): raise NotImplementedError
+    def add_record(self, user_id, food, weight, p, f, c): raise NotImplementedError
+    def get_today_records(self, user_id): raise NotImplementedError
+    def delete_record(self, rec_id, user_id): raise NotImplementedError
+    def clear_today(self, user_id): raise NotImplementedError
 
-# ---------- MongoDB Storage ----------
-class MongoStorage(Storage):
+# Mongo storage
+class MongoStorage(StorageBase):
     def __init__(self, uri):
         if MongoClient is None:
             raise Exception("pymongo not installed")
         self.client = MongoClient(uri)
-        self.db = self.client.get_database()  # default database in URI
-        # Collections: targets, records, food_db
+        self.db = self.client.get_database()
         self.targets = self.db["targets"]
-        self.records = self.db["records"]
         self.foods = self.db["food_db"]
+        self.records = self.db["records"]
 
-    # targets: one doc per user_id
     def set_target(self, user_id, p, f, c):
-        self.targets.update_one({"user_id": user_id},
-                                {"$set":{"protein":p,"fat":f,"carbs":c}}, upsert=True)
+        self.targets.update_one({"user_id":user_id},{"$set":{"protein":p,"fat":f,"carbs":c}}, upsert=True)
     def get_target(self, user_id):
-        doc = self.targets.find_one({"user_id":user_id})
-        return doc
+        return self.targets.find_one({"user_id":user_id}) or None
     def add_food_db(self, food, base_weight, p, f, c, category="其他"):
-        self.foods.update_one({"food":food},
-                              {"$set": {"base_weight":base_weight,"protein":p,"fat":f,"carbs":c,"category":category}},
-                              upsert=True)
+        self.foods.update_one({"food":food},{"$set":{"base_weight":base_weight,"protein":p,"fat":f,"carbs":c,"category":category}}, upsert=True)
     def get_food(self, food):
         return self.foods.find_one({"food":food})
     def search_foods(self, keyword):
+        import re
         regex = {"$regex": keyword, "$options":"i"}
-        return list(self.foods.find({"food": regex}))
+        return list(self.foods.find({"food":regex}))
     def list_foods(self):
         return list(self.foods.find())
     def add_record(self, user_id, food, weight, p, f, c):
-        self.records.insert_one({"user_id":user_id,"food":food,"weight":weight,"protein":p,"fat":f,"carbs":c,"time":datetime.utcnow()})
+        rec = {"user_id":user_id,"food":food,"weight":weight,"protein":p,"fat":f,"carbs":c,"time":datetime.utcnow().isoformat()}
+        r = self.records.insert_one(rec)
+        rec["id"] = str(r.inserted_id)
+        return rec
     def get_today_records(self, user_id):
+        rows = list(self.records.find({"user_id":user_id}))
         today = datetime.utcnow().date()
-        docs = list(self.records.find({"user_id":user_id, "time": {"$gte": datetime(today.year,today.month,today.day)}}))
-        return docs
+        out = []
+        for r in rows:
+            try:
+                t = datetime.fromisoformat(r.get("time"))
+            except:
+                continue
+            if t.date() == today:
+                rec = {"id":str(r.get("_id")), "food":r.get("food"), "weight":r.get("weight"), "protein":r.get("protein"), "fat":r.get("fat"), "carbs":r.get("carbs")}
+                out.append(rec)
+        return out
     def delete_record(self, rec_id, user_id):
         from bson import ObjectId
-        res = self.records.delete_one({"_id": ObjectId(rec_id), "user_id":user_id})
+        res = self.records.delete_one({"_id":ObjectId(rec_id), "user_id":user_id})
         return res.deleted_count
     def clear_today(self, user_id):
+        rows = list(self.records.find({"user_id":user_id}))
         today = datetime.utcnow().date()
-        res = self.records.delete_many({"user_id":user_id, "time": {"$gte": datetime(today.year,today.month,today.day)}})
-        return res.deleted_count
+        removed = 0
+        for r in rows:
+            t = datetime.fromisoformat(r.get("time"))
+            if t.date() == today:
+                self.records.delete_one({"_id":r.get("_id")})
+                removed += 1
+        return removed
 
-# ---------- GitHub JSON Storage ----------
-class GitHubStorage(Storage):
-    """
-    Stores everything in a single JSON file in a GitHub repo using the Contents API.
-    Schema:
-    {
-      "targets": { user_id: {protein,fat,carbs} },
-      "records": { user_id: [ {id, food, weight, protein, fat, carbs, time}, ... ] },
-      "food_db": { food: {base_weight, protein, fat, carbs, category}, ... },
-      "next_record_id": 1
-    }
-    """
+# GitHub JSON storage
+class GitHubStorage(StorageBase):
     def __init__(self, token, repo, path):
         if not token or not repo or not path:
-            raise Exception("GITHUB_TOKEN, GITHUB_REPO, GITHUB_DATA_PATH required for GitHub storage")
+            raise Exception("GITHUB_TOKEN,GITHUB_REPO,GITHUB_DATA_PATH required")
         self.token = token
         self.repo = repo
         self.path = path
-        self.api_base = "https://api.github.com"
-        self.headers = {"Authorization": f"token {self.token}", "Accept": "application/vnd.github.v3+json"}
-        # Ensure file exists
-        if not self._get_file():
-            init = {"targets":{}, "records":{}, "food_db":{}, "next_record_id":1}
-            self._save_file(init, "Initialize data file")
+        self.base = "https://api.github.com"
+        self.headers = {"Authorization": f"token {self.token}", "Accept":"application/vnd.github.v3+json"}
+        if not self._exists():
+            init = {"targets":{}, "food_db":{}, "records":{}, "next_record_id":1}
+            self._save(init, "Initialize data file")
 
-    def _get_file(self):
-        url = f"{self.api_base}/repos/{self.repo}/contents/{self.path}"
+    def _get(self):
+        url = f"{self.base}/repos/{self.repo}/contents/{self.path}"
         r = requests.get(url, headers=self.headers)
         if r.status_code == 200:
             return r.json()
         return None
-
-    def _save_file(self, data, message="update"):
-        # get current file to obtain sha if exists
-        url = f"{self.api_base}/repos/{self.repo}/contents/{self.path}"
+    def _exists(self):
+        return True if self._get() else False
+    def _read_state(self):
+        f = self._get()
+        if not f:
+            return {"targets":{}, "food_db":{}, "records":{}, "next_record_id":1}
+        content = base64.b64decode(f["content"]).decode("utf-8")
+        return json.loads(content)
+    def _save(self, data, message="update"):
+        url = f"{self.base}/repos/{self.repo}/contents/{self.path}"
         content = json.dumps(data, ensure_ascii=False, indent=2)
-        b64 = content.encode("utf-8")
-        import base64
-        payload = {"message": message, "content": base64.b64encode(b64).decode("utf-8")}
-        current = self._get_file()
-        if current:
-            payload["sha"] = current["sha"]
+        payload = {"message":message, "content": base64.b64encode(content.encode("utf-8")).decode("utf-8")}
+        cur = self._get()
+        if cur:
+            payload["sha"] = cur["sha"]
         r = requests.put(url, headers=self.headers, json=payload)
         if r.status_code not in (200,201):
             raise Exception(f"GitHub save failed: {r.status_code} {r.text}")
         return r.json()
 
-    def _read_state(self):
-        f = self._get_file()
-        if not f:
-            return {"targets":{}, "records":{}, "food_db":{}, "next_record_id":1}
-        import base64
-        content = base64.b64decode(f["content"]).decode("utf-8")
-        return json.loads(content)
-
-    def _write_state(self, state):
-        self._save_file(state, "update data")
-
-    # high-level ops
+    # methods
     def set_target(self, user_id, p, f, c):
         state = self._read_state()
         state["targets"][user_id] = {"protein":p,"fat":f,"carbs":c}
-        self._write_state(state)
+        self._save(state,"set target")
     def get_target(self, user_id):
-        state = self._read_state()
-        return state["targets"].get(user_id)
+        return self._read_state()["targets"].get(user_id)
     def add_food_db(self, food, base_weight, p, f, c, category="其他"):
         state = self._read_state()
         state["food_db"][food] = {"base_weight":base_weight,"protein":p,"fat":f,"carbs":c,"category":category}
-        self._write_state(state)
+        self._save(state,"add food")
     def get_food(self, food):
-        state = self._read_state()
-        return state["food_db"].get(food)
+        return self._read_state()["food_db"].get(food)
     def search_foods(self, keyword):
         state = self._read_state()
-        out = []
+        out=[]
         for k,v in state["food_db"].items():
             if keyword.lower() in k.lower():
-                copy = dict(v); copy["food"]=k; out.append(copy)
+                d = dict(v); d["food"]=k; out.append(d)
         return out
     def list_foods(self):
         state = self._read_state()
-        out = []
+        out=[]
         for k,v in state["food_db"].items():
-            copy = dict(v); copy["food"]=k; out.append(copy)
+            d = dict(v); d["food"]=k; out.append(d)
         return out
     def add_record(self, user_id, food, weight, p, f, c):
         state = self._read_state()
         rid = state.get("next_record_id",1)
-        rec = {"id": rid, "food":food, "weight":weight, "protein":p, "fat":f, "carbs":c, "time": datetime.utcnow().isoformat()}
-        state.setdefault("records", {}).setdefault(user_id, []).append(rec)
-        state["next_record_id"] = rid + 1
-        self._write_state(state)
+        rec = {"id":rid,"food":food,"weight":weight,"protein":p,"fat":f,"carbs":c,"time":datetime.utcnow().isoformat()}
+        state.setdefault("records",{}).setdefault(user_id,[]).append(rec)
+        state["next_record_id"]=rid+1
+        self._save(state,"add record")
         return rec
     def get_today_records(self, user_id):
         state = self._read_state()
-        recs = state.get("records", {}).get(user_id, [])
-        # filter by UTC date
+        recs = state.get("records",{}).get(user_id,[])
+        out=[]
         today = datetime.utcnow().date()
-        out = []
         for r in recs:
             t = datetime.fromisoformat(r["time"])
             if t.date() == today:
@@ -231,24 +207,23 @@ class GitHubStorage(Storage):
         return out
     def delete_record(self, rec_id, user_id):
         state = self._read_state()
-        recs = state.get("records", {}).get(user_id, [])
+        recs = state.get("records",{}).get(user_id,[])
         new = [r for r in recs if r["id"] != rec_id]
-        changed = len(recs) - len(new)
+        changed = len(recs)-len(new)
         state["records"][user_id] = new
-        self._write_state(state)
+        self._save(state,"delete record")
         return changed
     def clear_today(self, user_id):
         state = self._read_state()
-        recs = state.get("records", {}).get(user_id, [])
+        recs = state.get("records",{}).get(user_id,[])
         today = datetime.utcnow().date()
         new = [r for r in recs if datetime.fromisoformat(r["time"]).date() != today]
         removed = len(recs) - len(new)
         state["records"][user_id] = new
-        self._write_state(state)
+        self._save(state,"clear today")
         return removed
 
-# Select storage
-storage = None
+# choose storage
 if MONGO_URI:
     storage = MongoStorage(MONGO_URI)
     print("Using MongoDB storage")
@@ -256,358 +231,324 @@ elif GITHUB_TOKEN and GITHUB_REPO and GITHUB_DATA_PATH:
     storage = GitHubStorage(GITHUB_TOKEN, GITHUB_REPO, GITHUB_DATA_PATH)
     print("Using GitHub storage")
 else:
-    # fallback: local in-memory (not persistent across restarts)
-    class LocalStorage(GitHubStorage):  # reuse interface but keep local file
+    # fallback ephemeral (not persistent)
+    print("Using ephemeral local storage (not persistent)")
+    class Local(StorageBase):
         def __init__(self):
-            self.state = {"targets":{}, "records":{}, "food_db":{}, "next_record_id":1}
-        def _read_state(self):
-            return self.state
-        def _write_state(self, state):
-            self.state = state
+            self.state = {"targets":{}, "food_db":{}, "records":{}, "next_record_id":1}
         def set_target(self,user_id,p,f,c):
-            state=self._read_state(); state["targets"][user_id]={"protein":p,"fat":f,"carbs":c}; self._write_state(state)
-        def get_target(self,user_id): return self._read_state()["targets"].get(user_id)
+            self.state["targets"][user_id]={"protein":p,"fat":f,"carbs":c}
+        def get_target(self,user_id):
+            return self.state["targets"].get(user_id)
         def add_food_db(self,food,base_weight,p,f,c,category="其他"):
-            state=self._read_state(); state["food_db"][food]={"base_weight":base_weight,"protein":p,"fat":f,"carbs":c,"category":category}; self._write_state(state)
-        def get_food(self,food): return self._read_state()["food_db"].get(food)
+            self.state["food_db"][food]={"base_weight":base_weight,"protein":p,"fat":f,"carbs":c,"category":category}
+        def get_food(self,food): return self.state["food_db"].get(food)
         def search_foods(self,keyword):
-            state=self._read_state(); return [{"food":k, **v} for k,v in state["food_db"].items() if keyword.lower() in k.lower()]
-        def list_foods(self): return [{"food":k, **v} for k,v in self._read_state()["food_db"].items()]
+            return [ {"food":k, **v} for k,v in self.state["food_db"].items() if keyword.lower() in k.lower() ]
+        def list_foods(self):
+            return [ {"food":k, **v} for k,v in self.state["food_db"].items() ]
         def add_record(self,user_id,food,weight,p,f,c):
-            state=self._read_state(); rid = state.get("next_record_id",1); rec={"id":rid,"food":food,"weight":weight,"protein":p,"fat":f,"carbs":c,"time":datetime.utcnow().isoformat()}; state.setdefault("records",{}).setdefault(user_id,[]).append(rec); state["next_record_id"]=rid+1; self._write_state(state); return rec
+            rid = self.state.get("next_record_id",1); rec={"id":rid,"food":food,"weight":weight,"protein":p,"fat":f,"carbs":c,"time":datetime.utcnow().isoformat()}
+            self.state.setdefault("records",{}).setdefault(user_id,[]).append(rec); self.state["next_record_id"]=rid+1; return rec
         def get_today_records(self,user_id):
-            today=datetime.utcnow().date(); recs=self._read_state().get("records",{}).get(user_id,[]); return [r for r in recs if datetime.fromisoformat(r["time"]).date()==today]
+            out=[]; today=datetime.utcnow().date()
+            for r in self.state.get("records",{}).get(user_id,[]):
+                if datetime.fromisoformat(r["time"]).date() == today: out.append(r)
+            return out
         def delete_record(self,rec_id,user_id):
-            state=self._read_state(); recs=state.get("records",{}).get(user_id,[]); new=[r for r in recs if r["id"]!=rec_id]; changed=len(recs)-len(new); state["records"][user_id]=new; self._write_state(state); return changed
+            recs=self.state.get("records",{}).get(user_id,[]); new=[r for r in recs if r["id"]!=rec_id]; changed=len(recs)-len(new); self.state["records"][user_id]=new; return changed
         def clear_today(self,user_id):
-            state=self._read_state(); recs=state.get("records",{}).get(user_id,[]); today=datetime.utcnow().date(); new=[r for r in recs if datetime.fromisoformat(r["time"]).date()!=today]; removed=len(recs)-len(new); state["records"][user_id]=new; self._write_state(state); return removed
-    storage = LocalStorage()
-    print("Using local (ephemeral) storage - not recommended")
+            recs=self.state.get("records",{}).get(user_id,[]); today=datetime.utcnow().date(); new=[r for r in recs if datetime.fromisoformat(r["time"]).date()!=today]; removed=len(recs)-len(new); self.state["records"][user_id]=new; return removed
+    storage = Local()
 
-# ---------- Utilities ----------
-def emoji_progress(pct: float) -> str:
-    """Return a simple emoji progress bar for percentage 0..100"""
+# ---------- Helpers ----------
+def safe_float(s):
+    try:
+        return float(s)
+    except:
+        return None
+
+def emoji_progress(pct):
     pct = max(0.0, min(100.0, pct))
-    full_blocks = int(pct // 10)
-    parts = "█" * full_blocks + "▁" * (10 - full_blocks)
-    # use emoji color marker by percent
-    if pct >= 100:
-        emoji = "✅"
-    elif pct >= 75:
-        emoji = "🟢"
-    elif pct >= 50:
-        emoji = "🟡"
-    elif pct >= 25:
-        emoji = "🟠"
-    else:
-        emoji = "🔴"
-    return f"{emoji} {parts} {pct:.0f}%"
+    full = int(pct // 10)
+    bar = "█" * full + "▁" * (10-full)
+    if pct >= 100: emo="✅"
+    elif pct >= 75: emo="🟢"
+    elif pct >=50: emo="🟡"
+    elif pct >=25: emo="🟠"
+    else: emo="🔴"
+    return f"{emo} {bar} {pct:.0f}%"
 
-def build_flex_today(records: List[Dict], target: Optional[Dict], base_url: str):
-    """
-    Build a Flex message with table of today's records, totals, progress bars, and an image link to chart
-    """
-    # totals
-    total_p = sum([r["protein"] for r in records]) if records else 0
-    total_f = sum([r["fat"] for r in records]) if records else 0
-    total_c = sum([r["carbs"] for r in records]) if records else 0
-
-    if target:
-        tp = target.get("protein",0)
-        tf = target.get("fat",0)
-        tc = target.get("carbs",0)
-    else:
-        tp=tf=tc=0
-
-    # progress emojis
+def build_flex_payload(records, target, base_url, user_id):
+    total_p = sum(r["protein"] for r in records) if records else 0
+    total_f = sum(r["fat"] for r in records) if records else 0
+    total_c = sum(r["carbs"] for r in records) if records else 0
+    tp = target.get("protein",0) if target else 0
+    tf = target.get("fat",0) if target else 0
+    tc = target.get("carbs",0) if target else 0
     p_pct = (total_p/tp*100) if tp>0 else 0
     f_pct = (total_f/tf*100) if tf>0 else 0
     c_pct = (total_c/tc*100) if tc>0 else 0
-
-    p_emoji = emoji_progress(p_pct)
-    f_emoji = emoji_progress(f_pct)
-    c_emoji = emoji_progress(c_pct)
-
-    # chart URL
-    chart_url = f"{base_url}chart?type=pie&user_id={{USER_ID}}"  # placeholder, will be replaced on send
-
-    # Build Flex bubble
-    header = {
-        "type":"box","layout":"vertical","contents":[
-            {"type":"text","text":"今日攝取紀錄","weight":"bold","size":"lg"}
-        ]
-    }
-    # list foods (max 8 lines)
-    body_contents = []
-    for r in records[-8:]:
-        name = r.get("food")
-        w = r.get("weight")
-        p = r.get("protein")
-        f = r.get("fat")
-        c = r.get("carbs")
-        body_contents.append({
-            "type":"box","layout":"baseline","contents":[
-                {"type":"text","text":f"{name} {w}g","flex":3,"size":"sm"},
-                {"type":"text","text":f"P:{p:.1f}","flex":1,"size":"sm","align":"end"},
-                {"type":"text","text":f"F:{f:.1f}","flex":1,"size":"sm","align":"end"},
-                {"type":"text","text":f"C:{c:.1f}","flex":1,"size":"sm","align":"end"}
-            ]
-        })
-    if not body_contents:
-        body_contents.append({"type":"text","text":"今天還沒紀錄任何食物","size":"sm"})
-
-    totals_block = {
-        "type":"box","layout":"vertical","contents":[
-            {"type":"text","text":f"總計  P:{total_p:.1f}  F:{total_f:.1f}  C:{total_c:.1f}","size":"sm","weight":"bold"}
-        ]
-    }
-
-    progress_block = {
-        "type":"box","layout":"vertical","contents":[
-            {"type":"text","text":"達成度","weight":"bold","size":"sm"},
-            {"type":"text","text":f"蛋白質 {p_emoji}","size":"sm"},
-            {"type":"text","text":f"脂肪 {f_emoji}","size":"sm"},
-            {"type":"text","text":f"碳水 {c_emoji}","size":"sm"}
-        ]
-    }
-
-    image_block = {
-        "type":"image",
-        "url": base_url.rstrip("/") + f"/chart?type=pie&user_id={{USER_ID}}",
-        "size":"full",
-        "aspectRatio":"4:3",
-        "aspectMode":"cover"
-    }
-
+    p_bar = emoji_progress(p_pct); f_bar=emoji_progress(f_pct); c_bar=emoji_progress(c_pct)
+    # image url
+    base = base_url.rstrip("/") if base_url else ""
+    chart_url = f"{base}/chart?type=pie&user_id={user_id}"
+    # prepare body lines
+    body_lines = []
+    if records:
+        for r in records[-8:]:
+            body_lines.append({
+                "type":"box","layout":"baseline","contents":[
+                    {"type":"text","text":f"{r['food']} {r['weight']}g","flex":4,"size":"sm"},
+                    {"type":"text","text":f"P:{r['protein']:.1f}","flex":1,"size":"sm","align":"end"},
+                    {"type":"text","text":f"F:{r['fat']:.1f}","flex":1,"size":"sm","align":"end"},
+                    {"type":"text","text":f"C:{r['carbs']:.1f}","flex":1,"size":"sm","align":"end"}
+                ]
+            })
+    else:
+        body_lines.append({"type":"text","text":"今天沒有紀錄","size":"sm"})
     bubble = {
-      "type":"bubble",
-      "hero": image_block,
-      "body": {
-        "type":"box",
-        "layout":"vertical",
-        "contents": [
-            header,
-            {"type":"separator","margin":"md"},
-            {"type":"box","layout":"vertical","contents": body_contents, "spacing":"sm"},
-            {"type":"separator","margin":"md"},
-            totals_block,
-            {"type":"separator","margin":"md"},
-            progress_block
-        ]
-      }
+        "type":"bubble",
+        "hero":{"type":"image","url":chart_url,"size":"full","aspectRatio":"4:3","aspectMode":"cover"},
+        "body":{
+            "type":"box","layout":"vertical","contents":[
+                {"type":"text","text":"今日攝取紀錄","weight":"bold","size":"lg"},
+                {"type":"separator","margin":"md"},
+                {"type":"box","layout":"vertical","contents":body_lines,"spacing":"sm"},
+                {"type":"separator","margin":"md"},
+                {"type":"text","text":f"總計  P:{total_p:.1f}g  F:{total_f:.1f}g  C:{total_c:.1f}g","size":"sm","weight":"bold"},
+                {"type":"separator","margin":"md"},
+                {"type":"text","text":"達成度","weight":"bold","size":"sm"},
+                {"type":"text","text":f"蛋白質 {p_bar}","size":"sm"},
+                {"type":"text","text":f"脂肪 {f_bar}","size":"sm"},
+                {"type":"text","text":f"碳水 {c_bar}","size":"sm"},
+            ]
+        }
     }
-    flex = {"type":"carousel","contents":[bubble]}
-    return flex
+    return {"type":"carousel","contents":[bubble]}
 
-# ---------- Message parsing and commands ----------
-def parse_text(user_id: str, text: str, request_base_url: str):
-    """Main command parser"""
-    text = text.strip()
-    # set target: 目標 125 64 256
-    if text.startswith("目標"):
-        parts = text.split()
+# ---------- Chart generation using Pillow ----------
+def generate_chart_png(type_, user_id):
+    recs = storage.get_today_records(user_id)
+    total_p = sum(r["protein"] for r in recs) if recs else 0
+    total_f = sum(r["fat"] for r in recs) if recs else 0
+    total_c = sum(r["carbs"] for r in recs) if recs else 0
+    labels = ["Protein","Fat","Carbs"]
+    values = [max(0,total_p), max(0,total_f), max(0,total_c)]
+    # canvas
+    W, H = 800, 600
+    img = Image.new("RGB",(W,H),(255,255,255))
+    draw = ImageDraw.Draw(img)
+    # fonts (use default)
+    try:
+        font = ImageFont.truetype("DejaVuSans.ttf", 16)
+        font_b = ImageFont.truetype("DejaVuSans.ttf", 20)
+    except:
+        font = ImageFont.load_default()
+        font_b = ImageFont.load_default()
+    # draw title
+    draw.text((20,10),"今日營養分布", font=font_b, fill=(0,0,0))
+    # draw pie
+    total = sum(values)
+    if total <= 0:
+        draw.text((20,60),"今天尚無紀錄", font=font, fill=(80,80,80))
+    else:
+        # draw pie at left
+        cx, cy, r = 260, 320, 160
+        start = 0.0
+        colors = [(66,133,244),(219,68,55),(244,180,0)]
+        for i,v in enumerate(values):
+            if v<=0: continue
+            angle = 360.0 * v / total
+            draw.pieslice([cx-r,cy-r,cx+r,cy+r], start, start+angle, fill=colors[i])
+            start += angle
+        # legend
+        lx = 520; ly = 120; dy = 40
+        for i,(lab,v) in enumerate(zip(labels,values)):
+            draw.rectangle([lx,ly+i*dy,lx+20,ly+14+i*dy], fill=colors[i])
+            draw.text((lx+30, ly+i*dy), f"{lab}: {v:.1f} g", font=font, fill=(0,0,0))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return buf
+
+# ---------- Command parser ----------
+def parse_command(user_id, text, base_url):
+    t = text.strip()
+    if not t:
+        return None
+    # HELP
+    if t.lower() in ("help","幫助"):
+        help_text = (
+            "指令總覽：\n"
+            "目標 P F C -> 設定每日目標 (g)\n"
+            "新增 名稱 基準(g) P(g) F(g) C(g) [類別] -> 新增食物到資料庫\n"
+            "搜尋 關鍵字 / 找 關鍵字 -> 搜尋食物資料庫\n"
+            "查食物 / 查詢食物 / list / 表單 -> 列出食物資料庫\n"
+            "食物 重量 -> 記錄（食物需先新增） 例：燕麥 100\n"
+            "今日列表 / 今日紀錄 -> 顯示今日文字清單\n"
+            "今日累計 / 今日 / 今日累積 -> 顯示 Flex 視覺 + 圖表\n"
+            "刪除 id -> 刪除紀錄\n"
+            "清除全部 / 清除今天 -> 清除今日紀錄\n"
+        )
+        return {"type":"text","text":help_text}
+
+    # 目標
+    if t.startswith("目標"):
+        parts = t.split()
         if len(parts) != 4:
-            return "設定目標格式：目標 蛋白質(g) 脂肪(g) 碳水(g)，例如：目標 125 64 256"
+            return {"type":"text","text":"目標格式：目標 蛋白質(g) 脂肪(g) 碳水(g) 例如：目標 125 64 256"}
+        p = safe_float(parts[1]); f = safe_float(parts[2]); c = safe_float(parts[3])
+        if p is None or f is None or c is None:
+            return {"type":"text","text":"目標格式錯誤，請輸入數字"}
+        storage.set_target(user_id, p, f, c)
+        return {"type":"text","text":f"已設定每日目標：P:{p}g F:{f}g C:{c}g"}
+
+    # 新增
+    if t.startswith("新增"):
+        parts = t.split()
+        if len(parts) < 6:
+            return {"type":"text","text":"新增格式：新增 名稱 基準(g) P(g) F(g) C(g) [類別]"}
+        # parts[1]=name, 2=weight,3=p,4=f,5=c, 6=category optional
+        name = parts[1]
+        w = safe_float(parts[2]); p = safe_float(parts[3]); f = safe_float(parts[4]); c = safe_float(parts[5])
+        cat = parts[6] if len(parts)>=7 else "其他"
+        if None in (w,p,f,c):
+            return {"type":"text","text":"新增格式錯誤：基準/營養需為數字"}
         try:
-            _, p, f, c = parts
-            p,f,c = float(p), float(f), float(c)
-            storage.set_target(user_id, p, f, c)
-            return f"已設定每日目標：蛋白質 {p}g / 脂肪 {f}g / 碳水 {c}g"
+            storage.add_food_db(name, w, p, f, c, cat)
+            return {"type":"text","text":f"已新增食物：{name}，基準{w}g → P{p} F{f} C{c} (類別:{cat})"}
         except Exception as e:
-            return "格式錯誤，請輸入數字。"
+            return {"type":"text","text":"新增失敗：" + str(e)}
 
-    # 新增食物資料庫: 新增 燕麥 37.5 4.9 3 25.3 類別
-    if text.startswith("新增"):
-        # 支援可選最後一項為類別
-        parts = text.split()
-        if len(parts) not in (6,7):
-            return "新增格式：新增 食物名 基準重量(g) 蛋白質(g) 脂肪(g) 碳水(g) [類別]"
-        _, food, weight, p, f, c = parts[:6]
-        category = parts[6] if len(parts)==7 else "其他"
-        try:
-            weight = float(weight); p=float(p); f=float(f); c=float(c)
-            storage.add_food_db(food, weight, p, f, c, category)
-            return f"已新增食物：{food} ({category})，基準 {weight}g → P{p} F{f} C{c}"
-        except Exception as e:
-            return "新增格式錯誤，請確認數字格式。"
-
-    # 查詢所有食物
-    if text == "查食物":
-        foods = storage.list_foods()
-        if not foods:
-            return "食物資料庫為空"
-        lines = []
-        for f in foods[:100]:
-            name = f.get("food")
-            base = f.get("base_weight")
-            cat = f.get("category","")
-            lines.append(f"{name} ({cat}) {base}g P:{f.get('protein')} F:{f.get('fat')} C:{f.get('carbs')}")
-        return "\n".join(lines)
-
-    # 搜尋食物: 搜尋 燕麥
-    if text.startswith("搜尋"):
-        parts = text.split(maxsplit=1)
-        if len(parts) != 2:
-            return "搜尋 指令格式：搜尋 關鍵字"
-        kw = parts[1].strip()
+    # 搜尋 (搜尋 關鍵字) 或 (找 關鍵字)
+    if t.startswith("搜尋 ") or t.startswith("找 "):
+        kw = t.split(maxsplit=1)[1].strip()
         hits = storage.search_foods(kw)
         if not hits:
-            return "找不到符合關鍵字的食物"
-        lines = []
+            return {"type":"text","text":"找不到符合的食物"}
+        lines=[]
         for h in hits[:50]:
             lines.append(f"{h.get('food')} ({h.get('category','')}) {h.get('base_weight')}g P:{h.get('protein')} F:{h.get('fat')} C:{h.get('carbs')}")
-        return "\n".join(lines)
+        return {"type":"text","text":"搜尋結果：\n" + "\n".join(lines)}
 
-    # 加入紀錄：格式 食物 重量 (若找不到食物, 回覆要先新增)
-    parts = text.split()
-    if len(parts)==2:
-        food = parts[0]; 
-        try:
-            weight = float(parts[1])
-        except:
-            return "輸入格式錯誤：食物名稱 重量(g)，例如：雞胸 200"
-        f = storage.get_food(food)
-        if not f:
-            return "找不到該食物於資料庫，請使用「新增」先加入資料庫"
-        base = f["base_weight"]; p = f["protein"]; fat = f["fat"]; carb = f["carbs"]; cat = f.get("category","")
-        factor = weight / base if base>0 else 0
-        p_calc = p * factor; f_calc = fat * factor; c_calc = carb * factor
-        rec = storage.add_record(user_id, food, weight, p_calc, f_calc, c_calc)
-        return f"已加入紀錄：{food} {weight}g → P:{p_calc:.1f} F:{f_calc:.1f} C:{c_calc:.1f} （類別：{cat}）"
+    # list / 查食物 variants
+    if t in ("查食物","查詢食物","list","表單"):
+        foods = storage.list_foods()
+        if not foods:
+            return {"type":"text","text":"食物資料庫為空"}
+        lines=[]
+        for f in foods[:200]:
+            lines.append(f"{f.get('food')} ({f.get('category','')}) {f.get('base_weight')}g P:{f.get('protein')} F:{f.get('fat')} C:{f.get('carbs')}")
+        return {"type":"text","text":"食物資料庫：\n" + "\n".join(lines)}
 
-    # 刪除單筆: 刪除 3
-    if text.startswith("刪除"):
-        parts = text.split()
+    # 刪除
+    if t.startswith("刪除"):
+        parts = t.split()
         if len(parts)!=2:
-            return "刪除 指令格式：刪除 record_id（可於 '今日列表' 查看 id）"
+            return {"type":"text","text":"刪除 指令格式：刪除 id"}
         try:
-            rec_id = int(parts[1])
-            changed = storage.delete_record(rec_id, user_id)
-            if changed:
-                return f"已刪除紀錄 {rec_id}"
-            else:
-                return f"找不到紀錄 {rec_id}"
+            rid = int(parts[1])
+            changed = storage.delete_record(rid, user_id)
+            return {"type":"text","text":("已刪除紀錄 "+str(rid)) if changed else ("找不到紀錄 "+str(rid))}
         except:
-            return "刪除格式錯誤，請輸入數字 id"
+            return {"type":"text","text":"刪除格式錯誤，id 必須為數字"}
 
     # 清除全部
-    if text == "清除全部":
+    if t in ("清除全部","清除今天"):
         removed = storage.clear_today(user_id)
-        return f"已刪除 {removed} 筆今日紀錄"
+        return {"type":"text","text":f"已刪除 {removed} 筆今日紀錄"}
 
-    # 顯示今日列表（簡易文本）
-    if text == "今日列表":
+    # 今日列表（文字）
+    if t in ("今日列表","今日紀錄"):
         recs = storage.get_today_records(user_id)
         if not recs:
-            return "今天尚無紀錄"
-        lines = []
-        total_p=total_f=total_c=0
+            return {"type":"text","text":"今天尚無紀錄"}
+        lines=[]
+        totp=totf=totc=0
         for r in recs:
             lines.append(f"id:{r['id']} {r['food']} {r['weight']}g P:{r['protein']:.1f} F:{r['fat']:.1f} C:{r['carbs']:.1f}")
-            total_p += r['protein']; total_f += r['fat']; total_c += r['carbs']
-        lines.append(f"總計 P:{total_p:.1f} F:{total_f:.1f} C:{total_c:.1f}")
-        return "\n".join(lines)
+            totp += r['protein']; totf += r['fat']; totc += r['carbs']
+        lines.append(f"總計 P:{totp:.1f} F:{totf:.1f} C:{totc:.1f}")
+        return {"type":"text","text":"\n".join(lines)}
 
-    # 顯示今日（Flex + 圖片） -> return special dict instructing to send Flex
-    if text == "今日累計":
+    # 今日漂亮視覺（Flex）
+    if t in ("今日累計","今日","今日累積","今日 累積"):
         recs = storage.get_today_records(user_id)
-        target = storage.get_target(user_id)
-        # Build flex payload; we will replace placeholder {USER_ID} with actual id before sending
-        base_url = APP_URL if APP_URL else request_base_url
-        flex = build_flex_today(recs, target, base_url)
-        # Put a marker to indicate this should be sent as Flex
-        return {"type":"flex", "flex": flex, "user_id": user_id}
+        target = storage.get_target(user_id) or {}
+        base = APP_URL if APP_URL else ""
+        flex = build_flex_payload(recs, target, base, user_id)
+        return {"type":"flex","flex":flex, "user_id":user_id}
 
-    # fallback: help
-    help_text = (
-        "可用指令:\n"
-        "目標 P F C  -> 設定每日目標，例如：目標 125 64 256\n"
-        "新增 名稱 重量(g) P(g) F(g) C(g) [類別] -> 新增食物資料庫\n"
-        "搜尋 關鍵字 -> 搜尋食物資料庫\n"
-        "查食物 -> 顯示所有食物\n"
-        "食物 重量 -> 記錄（食物需先在資料庫）例如：雞胸 200\n"
-        "今日列表 -> 顯示今日紀錄 (含 id)\n"
-        "今日累計 -> 顯示漂亮的 Flex 視覺（含圖表）\n"
-        "刪除 id -> 刪除紀錄\n"
-        "清除全部 -> 清除今日所有紀錄\n"
-    )
-    return help_text
+    # Record food: 格式 名稱 重量 (兩段)
+    parts = t.split()
+    if len(parts)==2:
+        name = parts[0]; wt = safe_float(parts[1])
+        if wt is None:
+            return None  # 不回覆 (符合要求)
+        f = storage.get_food(name)
+        if not f:
+            return {"type":"text","text":"找不到該食物，請先使用「新增 名稱 基準(g) P F C」加入資料庫"}
+        base = f["base_weight"]; p = f["protein"]; fat = f["fat"]; carb = f["carbs"]
+        factor = wt / base if base>0 else 0
+        p_calc = p*factor; f_calc=fat*factor; c_calc=carb*factor
+        rec = storage.add_record(user_id, name, wt, p_calc, f_calc, c_calc)
+        return {"type":"text","text":f"已加入紀錄：{name} {wt}g → P:{p_calc:.1f} F:{f_calc:.1f} C:{c_calc:.1f}"}
+
+    # else: not matched -> do not reply
+    return None
 
 # ---------- Chart endpoint ----------
 @app.get("/chart")
 def chart(type: str = "pie", user_id: Optional[str] = None):
-    """
-    Generate a chart image for user_id (pie or bar). If user_id missing returns error.
-    Example: /chart?type=pie&user_id=xxxxx
-    """
     if not user_id:
         return JSONResponse({"error":"user_id required"}, status_code=400)
-    recs = storage.get_today_records(user_id)
-    total_p = sum([r["protein"] for r in recs]) if recs else 0
-    total_f = sum([r["fat"] for r in recs]) if recs else 0
-    total_c = sum([r["carbs"] for r in recs]) if recs else 0
-
-    labels = ["Protein","Fat","Carbs"]
-    values = [max(0,total_p), max(0,total_f), max(0,total_c)]
-
-    fig, ax = plt.subplots(figsize=(6,4))
-    if type == "pie":
-        ax.pie(values, labels=labels, autopct="%1.1f%%", startangle=90)
-        ax.axis("equal")
-    else:
-        ax.bar(labels, values)
-        ax.set_ylabel("grams")
-    buf = io.BytesIO()
-    plt.tight_layout()
-    plt.savefig(buf, format="png")
-    plt.close(fig)
-    buf.seek(0)
+    buf = generate_chart_png(type, user_id)
     return StreamingResponse(buf, media_type="image/png")
 
 # ---------- LINE webhook ----------
 @app.post("/callback")
 async def callback(request: Request):
     signature = request.headers.get("X-Line-Signature", "")
-    body_bytes = await request.body()
-    body = body_bytes.decode("utf-8")
+    body = await request.body()
+    body_text = body.decode("utf-8")
     try:
-        handler.handle(body, signature)
+        handler.handle(body_text, signature)
     except InvalidSignatureError:
         return Response(status_code=400, content="Invalid signature")
     return Response(status_code=200, content="OK")
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
-    user_id = event.source.user_id
-    text = event.message.text.strip()
-    # parse
-    # get base url for chart links
-    base_url = APP_URL
-    if not base_url:
-        # try to build from request - we cannot access request here, so fallback to empty base;
-        # but the build_flex_today expects base_url to be provided when generating the flex in parse_text
-        # Instead, we'll use a placeholder and replace later when sending
-        base_url = ""  # will be replaced when building final Flex (we have to construct absolute)
-    result = parse_text(user_id, text, request_base_url=base_url)
-    # If parse_text returns a special dict for flex
-    if isinstance(result, dict) and result.get("type")=="flex":
-        flex = result["flex"]
-        uid = result["user_id"]
-        # Replace placeholder {USER_ID} in image url with actual id
-        # Attempt to build a base_url from APP_URL, else try to guess from LINE's domain is impossible here;
-        # So we will use APP_URL if available. If not, the chart image may not be reachable externally.
+    try:
+        user_id = event.source.user_id
+        text = event.message.text.strip()
+        # parse
         base = APP_URL if APP_URL else ""
-        # replace image url inside flex
-        flex_json = json.dumps(flex)
-        flex_json = flex_json.replace("{USER_ID}", uid)
-        flex = json.loads(flex_json)
-        # send Flex
-        line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="今日攝取", contents=flex))
-        return
-    # Normal text reply
-    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=str(result)))
+        result = parse_command(user_id, text, base)
+        # If result is None -> do not reply (user asked for silence)
+        if result is None:
+            return
+        # handle types
+        if result.get("type") == "text":
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=result["text"]))
+            return
+        if result.get("type") == "flex":
+            flex = result["flex"]
+            # send flex
+            line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="今日攝取", contents=flex))
+            return
+        # fallback
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=str(result)))
+    except Exception as e:
+        # safe fallback error reply
+        try:
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="發生錯誤，請稍後再試"))
+        except:
+            pass
+        traceback.print_exc()
 
-# ---------- Run local helper ----------
+# ---------- run local ----------
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)), reload=True)
+    uvicorn.run("app:app", host="0.0.0.0", port=int(os.getenv("PORT",8000)), reload=True)
