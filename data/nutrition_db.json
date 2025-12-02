@@ -1,8 +1,23 @@
 {
   "food_db": {
-    "燕麥": {"cal": 37.5, "protein": 4.9, "fat": 3, "carb": 25.3},
-    "白飯": {"cal": 150, "protein": 2.5, "fat": 0.3, "carb": 33},
-    "雞胸肉": {"cal": 165, "protein": 31, "fat": 3.6, "carb": 0}
+    "燕麥": {
+      "protein": 12,       // 每份蛋白質 (g)
+      "fat": 6,            // 每份脂肪 (g)
+      "carb": 60,          // 每份碳水 (g)
+      "portion": 100       // 每份克數 (g)
+    },
+    "雞蛋": {
+      "protein": 13,
+      "fat": 11,
+      "carb": 1,
+      "portion": 50
+    },
+    "白飯": {
+      "protein": 2.5,
+      "fat": 0.3,
+      "carb": 28,
+      "portion": 100
+    }
   },
   "records": {},
   "targets": {}
