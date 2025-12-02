@@ -1,24 +1,14 @@
 {
-  "food_db": {
     "燕麥": {
-      "protein": 12,       // 每份蛋白質 (g)
-      "fat": 6,            // 每份脂肪 (g)
-      "carb": 60,          // 每份碳水 (g)
-      "portion": 100       // 每份克數 (g)
+        "portion": 37.5,
+        "protein": 4.9,
+        "fat": 3,
+        "carb": 25.3
     },
-    "雞蛋": {
-      "protein": 13,
-      "fat": 11,
-      "carb": 1,
-      "portion": 50
-    },
-    "白飯": {
-      "protein": 2.5,
-      "fat": 0.3,
-      "carb": 28,
-      "portion": 100
+    "雞胸肉": {
+        "portion": 100,
+        "protein": 23,
+        "fat": 2,
+        "carb": 0
     }
-  },
-  "records": {},
-  "targets": {}
 }
