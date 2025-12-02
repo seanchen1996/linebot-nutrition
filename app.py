@@ -34,9 +34,14 @@ class Storage:
         state = self._read_state()
         return state.get("food_db", {})
 
-    def add_food(self, name, protein, fat, carb):
+    def add_food(self, name, portion, protein, fat, carb):
         state = self._read_state()
-        state.setdefault("food_db", {})[name] = {"protein": protein, "fat": fat, "carb": carb}
+        state.setdefault("food_db", {})[name] = {
+            "portion": portion,
+            "protein": protein,
+            "fat": fat,
+            "carb": carb
+        }
         self._write_state(state)
 
     def get_food(self, name):
@@ -44,16 +49,16 @@ class Storage:
         return state.get("food_db", {}).get(name)
 
     # --- Records ---
-    def add_record(self, user_id, name, amount):
+    def add_record(self, user_id, name, grams):
         state = self._read_state()
         state.setdefault("records", {}).setdefault(user_id, [])
         # 如果同食物已存在，累加
         for r in state["records"][user_id]:
             if r["food"] == name:
-                r["amount"] += amount
+                r["grams"] += grams
                 break
         else:
-            state["records"][user_id].append({"food": name, "amount": amount})
+            state["records"][user_id].append({"food": name, "grams": grams})
         self._write_state(state)
 
     def get_records(self, user_id):
@@ -112,14 +117,14 @@ def parse_text(user_id, text):
         if not words:
             return None
 
-        # --- 新增食物 ---
+        # --- 新增食物: 新增 名稱 份量 P F C ---
         if words[0] in ["新增"]:
-            if len(words) != 5:
-                return "新增格式錯誤，請輸入：新增 食物名 protein fat carb"
+            if len(words) != 6:
+                return "新增格式錯誤：新增 食物名 份量(protion) P F C"
             name = words[1]
-            protein, fat, carb = map(float, words[2:])
-            storage.add_food(name, protein, fat, carb)
-            return f"已新增 {name} P:{protein} F:{fat} C:{carb}"
+            portion, protein, fat, carb = map(float, words[2:])
+            storage.add_food(name, portion, protein, fat, carb)
+            return f"已新增 {name} 每份{portion}g P:{protein} F:{fat} C:{carb}"
 
         # --- 列出資料庫 ---
         if words[0] in ["列表", "list", "查食物", "食物表"]:
@@ -128,7 +133,7 @@ def parse_text(user_id, text):
                 return "資料庫空的"
             lines = []
             for name, nut in foods.items():
-                lines.append(f"{name} P:{nut['protein']} F:{nut['fat']} C:{nut['carb']}")
+                lines.append(f"{name} {nut['portion']}g P:{nut['protein']} F:{nut['fat']} C:{nut['carb']}")
             return "\n".join(lines)
 
         # --- 今日紀錄 ---
@@ -153,7 +158,7 @@ def parse_text(user_id, text):
         # --- 設定目標 ---
         if words[0] in ["目標"]:
             if len(words) != 4:
-                return "目標格式錯誤，請輸入數字：目標 protein fat carb"
+                return "目標格式錯誤：目標 P F C"
             protein, fat, carb = map(float, words[1:])
             storage.set_target(user_id, protein, fat, carb)
             return f"已設定目標 P:{protein} F:{fat} C:{carb}"
@@ -162,12 +167,12 @@ def parse_text(user_id, text):
         if words[0] in ["help", "幫助"]:
             return (
                 "可用指令：\n"
-                "新增 食物名 protein fat carb\n"
+                "新增 食物名 份量 P F C\n"
                 "列表 / list / 查食物 / 食物表\n"
                 "今日 / 累計 / 今日累計\n"
                 "清除今日\n"
                 "清除 食物名\n"
-                "目標 protein fat carb\n"
+                "目標 P F C\n"
             )
 
         # --- 記錄食物 ---
@@ -175,11 +180,11 @@ def parse_text(user_id, text):
             food_name = words[0]
             if food_name in storage.list_foods():
                 try:
-                    amount = float(words[1])
+                    grams = float(words[1])
                 except:
                     return "請輸入數字"
-                storage.add_record(user_id, food_name, amount)
-                return f"{food_name} {amount}g 已加入今日紀錄"
+                storage.add_record(user_id, food_name, grams)
+                return f"{food_name} {grams}g 已加入今日紀錄"
 
     except Exception as e:
         print("parse_text error:", e)
@@ -198,13 +203,13 @@ def flex_today_records(user_id, records):
         f = foods.get(r["food"])
         if not f:
             continue
-        scaled = {k: round(v * r["amount"] / 100, 2) for k, v in f.items()}
+        factor = r["grams"] / f["portion"]
+        scaled = {k: round(f[k] * factor, 2) for k in ["protein","fat","carb"]}
         for k in total:
-            total[k] += scaled.get(k, 0)
-        lines.append(f"{r['food']}: {r['amount']}g P:{scaled['protein']} F:{scaled['fat']} C:{scaled['carb']}")
+            total[k] += scaled.get(k,0)
+        lines.append(f"{r['food']} {r['grams']}g P:{scaled['protein']} F:{scaled['fat']} C:{scaled['carb']}")
 
-    # 計算百分比
-    percent = {k: min(round(total[k] / target[k] * 100), 100) for k in target}
+    percent = {k: min(round(total[k]/target[k]*100),100) for k in target}
 
     flex = {
         "type": "flex",
@@ -215,15 +220,12 @@ def flex_today_records(user_id, records):
                 "type": "box",
                 "layout": "vertical",
                 "contents": [
-                    {"type": "text", "text": "今日紀錄", "weight": "bold", "size": "md"},
-                    *[
-                        {"type": "text", "text": line, "size": "sm"}
-                        for line in lines
-                    ],
-                    {"type": "text", "text": "達成率", "weight": "bold", "size": "md"},
-                    {"type": "text", "text": f"P: {percent['protein']}% F: {percent['fat']}% C: {percent['carb']}%", "size": "sm"}
+                    {"type":"text","text":"今日紀錄","weight":"bold","size":"md"},
+                    *[{"type":"text","text":line,"size":"sm"} for line in lines],
+                    {"type":"text","text":"達成率","weight":"bold","size":"md"},
+                    {"type":"text","text":f"P:{percent['protein']}% F:{percent['fat']}% C:{percent['carb']}%","size":"sm"}
                 ]
             }
         }
     }
-    return FlexSendMessage(alt_text="今日紀錄", contents=flex)
+    return FlexSendMessage(alt_text="今日紀錄", contents=flex)_
