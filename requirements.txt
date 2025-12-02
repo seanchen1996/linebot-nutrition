@@ -1,7 +1,7 @@
-fastapi
-uvicorn
-line-bot-sdk
-pymongo    # 若使用 MongoDB
-requests   # 用於呼叫 GitHub API
-matplotlib
-pillow
+fastapi==0.110.0
+uvicorn==0.22.0
+line-bot-sdk==3.11.0
+pymongo[srv]==4.6.1
+requests==2.31.0
+pillow==10.2.0
+python-dotenv==1.0.1
