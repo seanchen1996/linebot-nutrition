@@ -1,12 +1,10 @@
 {
-  "users": {},
+  "users": {
+  },
   "food_db": {
-    "燕麥": {
-      "base_weight": 37.5,
-      "protein": 4.9,
-      "fat": 3.0,
-      "carbs": 25.3,
-      "category": "其他"
-    }
+    "燕麥": {"weight": 100, "protein": 13.0, "fat": 7.0, "carb": 68.0},
+    "雞胸": {"weight": 100, "protein": 31.0, "fat": 3.6, "carb": 0.0},
+    "白飯": {"weight": 150, "protein": 3.0, "fat": 0.3, "carb": 33.0},
+    "地瓜": {"weight": 100, "protein": 1.6, "fat": 0.1, "carb": 20.0}
   }
 }
