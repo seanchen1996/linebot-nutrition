@@ -66,6 +66,12 @@
       "protein": 19.1,
       "fat": 9.8,
       "carb": 7.9
+    },
+    "redbull": {
+      "portion": 1.0,
+      "protein": 0.0,
+      "fat": 0.0,
+      "carb": 26.8
     }
   }
 }
