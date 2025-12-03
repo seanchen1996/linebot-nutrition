@@ -76,6 +76,13 @@
       "fat": 1.2,
       "carbs": 18.1,
       "category": "其他"
+    },
+    "好市多牛奶": {
+      "base": 100.0,
+      "protein": 3.5,
+      "fat": 3.3,
+      "carbs": 5.2,
+      "category": "其他"
     }
   },
   "records": {
