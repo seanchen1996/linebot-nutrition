@@ -20,6 +20,13 @@
       "fat": 1.8,
       "carbs": 1.6,
       "category": "其他"
+    },
+    "全脂牛奶": {
+      "base": 100.0,
+      "protein": 3.2,
+      "fat": 3.7,
+      "carbs": 4.8,
+      "category": "其他"
     }
   },
   "records": {
