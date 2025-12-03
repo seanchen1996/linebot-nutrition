@@ -83,6 +83,13 @@
       "fat": 3.3,
       "carbs": 5.2,
       "category": "其他"
+    },
+    "超能蛋白": {
+      "base": 1.0,
+      "protein": 10.1,
+      "fat": 4.5,
+      "carbs": 8.1,
+      "category": "其他"
     }
   },
   "records": {
