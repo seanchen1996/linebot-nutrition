@@ -18,7 +18,7 @@
       "carb": 256.0
     }
   },
-  "nutrition": {
+  "nutrition_db": {
     "厚豆花": {
       "portion": 1.0,
       "protein": 6.2,
