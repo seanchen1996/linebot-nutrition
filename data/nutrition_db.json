@@ -13,6 +13,13 @@
       "fat": 4.7,
       "carbs": 36.4,
       "category": "其他"
+    },
+    "椒麻雞胸": {
+      "base": 1.0,
+      "protein": 23.6,
+      "fat": 1.8,
+      "carbs": 1.6,
+      "category": "其他"
     }
   },
   "records": {},
