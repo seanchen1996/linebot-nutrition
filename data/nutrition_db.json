@@ -22,7 +22,19 @@
       "category": "其他"
     }
   },
-  "records": {},
+  "records": {
+    "U6fd6b534a4b74b1dd266a77e1b7128e0": [
+      {
+        "id": 1,
+        "food": "椒麻雞胸",
+        "weight": 1.0,
+        "protein": 23.6,
+        "fat": 1.8,
+        "carbs": 1.6,
+        "time": "2025-12-03T04:17:57.396150"
+      }
+    ]
+  },
   "targets": {
     "Ubdcf5bb80ad7849d4c7f4b4031215979": {
       "protein": 128.0,
@@ -35,5 +47,5 @@
       "carbs": 180.0
     }
   },
-  "next_id": 1
+  "next_id": 2
 }
