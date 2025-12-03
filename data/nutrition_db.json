@@ -34,6 +34,13 @@
       "fat": 1.1,
       "carbs": 25.1,
       "category": "其他"
+    },
+    "711蛋白餐": {
+      "base": 1.0,
+      "protein": 31.1,
+      "fat": 11.6,
+      "carbs": 72.4,
+      "category": "其他"
     }
   },
   "records": {
