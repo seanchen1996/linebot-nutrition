@@ -1,6 +1,12 @@
 {
   "nutrition_db": {},
   "records": {},
-  "targets": {},
+  "targets": {
+    "Ubdcf5bb80ad7849d4c7f4b4031215979": {
+      "protein": 128.0,
+      "fat": 64.0,
+      "carbs": 256.0
+    }
+  },
   "next_id": 1
 }
