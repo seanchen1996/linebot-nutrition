@@ -1,5 +1,13 @@
 {
-  "nutrition_db": {},
+  "nutrition_db": {
+    "711蛋白豆漿": {
+      "base": 1.0,
+      "protein": 20.6,
+      "fat": 2.6,
+      "carbs": 12.8,
+      "category": "其他"
+    }
+  },
   "records": {},
   "targets": {
     "Ubdcf5bb80ad7849d4c7f4b4031215979": {
