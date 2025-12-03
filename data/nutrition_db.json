@@ -55,6 +55,13 @@
       "fat": 12.3,
       "carbs": 71.0,
       "category": "其他"
+    },
+    "石安牧場溫泉蛋": {
+      "base": 1.0,
+      "protein": 5.4,
+      "fat": 2.9,
+      "carbs": 1.4,
+      "category": "其他"
     }
   },
   "records": {
