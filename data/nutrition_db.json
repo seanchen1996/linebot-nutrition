@@ -62,6 +62,13 @@
       "fat": 2.9,
       "carbs": 1.4,
       "category": "其他"
+    },
+    "桂格燕麥": {
+      "base": 37.5,
+      "protein": 4.9,
+      "fat": 3.0,
+      "carbs": 25.3,
+      "category": "其他"
     }
   },
   "records": {
