@@ -41,6 +41,13 @@
       "fat": 11.6,
       "carbs": 72.4,
       "category": "其他"
+    },
+    "711辣雞球": {
+      "base": 1.0,
+      "protein": 20.4,
+      "fat": 20.5,
+      "carbs": 20.7,
+      "category": "其他"
     }
   },
   "records": {
