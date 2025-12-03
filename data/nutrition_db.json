@@ -69,6 +69,13 @@
       "fat": 3.0,
       "carbs": 25.3,
       "category": "其他"
+    },
+    "燕麥棒（草莓）": {
+      "base": 1.0,
+      "protein": 1.5,
+      "fat": 1.2,
+      "carbs": 18.1,
+      "category": "其他"
     }
   },
   "records": {
