@@ -6,6 +6,13 @@
       "fat": 2.6,
       "carbs": 12.8,
       "category": "其他"
+    },
+    "明太子鮭魚飯團": {
+      "base": 1.0,
+      "protein": 6.0,
+      "fat": 4.7,
+      "carbs": 36.4,
+      "category": "其他"
     }
   },
   "records": {},
