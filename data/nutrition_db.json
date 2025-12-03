@@ -27,6 +27,13 @@
       "fat": 3.7,
       "carbs": 4.8,
       "category": "其他"
+    },
+    "711咖啡蛋白": {
+      "base": 1.0,
+      "protein": 20.3,
+      "fat": 1.1,
+      "carbs": 25.1,
+      "category": "其他"
     }
   },
   "records": {
