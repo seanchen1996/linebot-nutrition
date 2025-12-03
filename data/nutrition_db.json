@@ -90,6 +90,13 @@
       "fat": 4.5,
       "carbs": 8.1,
       "category": "其他"
+    },
+    "珍奶高蛋白": {
+      "base": 35.0,
+      "protein": 28.0,
+      "fat": 2.4,
+      "carbs": 2.6,
+      "category": "其他"
     }
   },
   "records": {
