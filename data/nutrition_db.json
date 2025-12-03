@@ -48,6 +48,13 @@
       "fat": 20.5,
       "carbs": 20.7,
       "category": "其他"
+    },
+    "鼎盛火鍋": {
+      "base": 1.0,
+      "protein": 32.0,
+      "fat": 12.3,
+      "carbs": 71.0,
+      "category": "其他"
     }
   },
   "records": {
