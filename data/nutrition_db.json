@@ -118,6 +118,13 @@
       "fat": 4.5,
       "carbs": 1.0,
       "category": "其他"
+    },
+    "堅果塔": {
+      "base": 100.0,
+      "protein": 15.4,
+      "fat": 34.5,
+      "carbs": 45.2,
+      "category": "其他"
     }
   },
   "records": {
