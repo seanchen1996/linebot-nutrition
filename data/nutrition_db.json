@@ -111,6 +111,13 @@
       "fat": 5.8,
       "carbs": 8.1,
       "category": "其他"
+    },
+    "茶葉蛋": {
+      "base": 1.0,
+      "protein": 7.0,
+      "fat": 4.5,
+      "carbs": 1.0,
+      "category": "其他"
     }
   },
   "records": {
