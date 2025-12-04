@@ -146,6 +146,13 @@
       "fat": 3.3,
       "carbs": 12.4,
       "category": "其他"
+    },
+    "燕麥棒（蔓越莓）": {
+      "base": 1.0,
+      "protein": 1.6,
+      "fat": 2.4,
+      "carbs": 17.1,
+      "category": "其他"
     }
   },
   "records": {
