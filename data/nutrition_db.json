@@ -104,6 +104,13 @@
       "fat": 16.6,
       "carbs": 45.1,
       "category": "其他"
+    },
+    "沙茶姑姑": {
+      "base": 1.0,
+      "protein": 3.0,
+      "fat": 5.8,
+      "carbs": 8.1,
+      "category": "其他"
     }
   },
   "records": {
