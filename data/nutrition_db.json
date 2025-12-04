@@ -125,6 +125,13 @@
       "fat": 34.5,
       "carbs": 45.2,
       "category": "其他"
+    },
+    "萊爾富椒麻雞胸": {
+      "base": 1.0,
+      "protein": 21.0,
+      "fat": 2.8,
+      "carbs": 3.6,
+      "category": "其他"
     }
   },
   "records": {
