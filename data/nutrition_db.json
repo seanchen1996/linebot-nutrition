@@ -139,6 +139,13 @@
       "fat": 3.8,
       "carbs": 4.5,
       "category": "其他"
+    },
+    "厚豆花": {
+      "base": 1.0,
+      "protein": 6.2,
+      "fat": 3.3,
+      "carbs": 12.4,
+      "category": "其他"
     }
   },
   "records": {
