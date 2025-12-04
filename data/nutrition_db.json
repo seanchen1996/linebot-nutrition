@@ -97,6 +97,13 @@
       "fat": 2.4,
       "carbs": 2.6,
       "category": "其他"
+    },
+    "主廚烤雞餐": {
+      "base": 1.0,
+      "protein": 25.5,
+      "fat": 16.6,
+      "carbs": 45.1,
+      "category": "其他"
     }
   },
   "records": {
