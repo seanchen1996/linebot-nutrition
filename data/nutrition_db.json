@@ -132,6 +132,13 @@
       "fat": 2.8,
       "carbs": 3.6,
       "category": "其他"
+    },
+    "味噌雞胸": {
+      "base": 1.0,
+      "protein": 20.4,
+      "fat": 3.8,
+      "carbs": 4.5,
+      "category": "其他"
     }
   },
   "records": {
