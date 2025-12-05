@@ -195,6 +195,13 @@
       "fat": 4.4,
       "carbs": 28.9,
       "category": "其他"
+    },
+    "蛤蜊烤飯糰": {
+      "base": 1.0,
+      "protein": 6.0,
+      "fat": 1.8,
+      "carbs": 57.4,
+      "category": "其他"
     }
   },
   "records": {
