@@ -188,6 +188,13 @@
       "fat": 4.4,
       "carbs": 4.2,
       "category": "其他"
+    },
+    "石安溏心蛋飯糰": {
+      "base": 1.0,
+      "protein": 6.1,
+      "fat": 4.4,
+      "carbs": 28.9,
+      "category": "其他"
     }
   },
   "records": {
