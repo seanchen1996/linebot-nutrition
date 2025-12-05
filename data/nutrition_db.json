@@ -202,6 +202,13 @@
       "fat": 1.8,
       "carbs": 57.4,
       "category": "其他"
+    },
+    "鮪魚御飯糰": {
+      "base": 1.0,
+      "protein": 5.2,
+      "fat": 7.2,
+      "carbs": 38.5,
+      "category": "其他"
     }
   },
   "records": {
