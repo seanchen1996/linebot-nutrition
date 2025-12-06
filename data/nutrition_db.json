@@ -244,6 +244,13 @@
       "fat": 32.0,
       "carbs": 21.0,
       "category": "其他"
+    },
+    "紅心芭樂": {
+      "base": 100.0,
+      "protein": 0.9,
+      "fat": 0.2,
+      "carbs": 9.6,
+      "category": "其他"
     }
   },
   "records": {
