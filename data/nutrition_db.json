@@ -272,6 +272,13 @@
       "fat": 21.7,
       "carbs": 62.0,
       "category": "其他"
+    },
+    "石二鍋火鍋（五花牛）": {
+      "base": 1.0,
+      "protein": 38.0,
+      "fat": 47.0,
+      "carbs": 92.0,
+      "category": "其他"
     }
   },
   "records": {
