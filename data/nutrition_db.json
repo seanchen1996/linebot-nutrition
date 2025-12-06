@@ -265,6 +265,13 @@
       "fat": 0.2,
       "carbs": 10.0,
       "category": "其他"
+    },
+    "牛家炒麵": {
+      "base": 1.0,
+      "protein": 35.6,
+      "fat": 21.7,
+      "carbs": 62.0,
+      "category": "其他"
     }
   },
   "records": {
