@@ -258,6 +258,13 @@
       "fat": 2.9,
       "carbs": 24.1,
       "category": "其他"
+    },
+    "橘子": {
+      "base": 100.0,
+      "protein": 0.8,
+      "fat": 0.2,
+      "carbs": 10.0,
+      "category": "其他"
     }
   },
   "records": {
