@@ -230,6 +230,13 @@
       "fat": 4.6,
       "carbs": 1.4,
       "category": "其他"
+    },
+    "全家義式雞胸": {
+      "base": 1.0,
+      "protein": 21.7,
+      "fat": 3.0,
+      "carbs": 1.5,
+      "category": "其他"
     }
   },
   "records": {
