@@ -251,6 +251,13 @@
       "fat": 0.2,
       "carbs": 9.6,
       "category": "其他"
+    },
+    "愛之味燕麥": {
+      "base": 1.0,
+      "protein": 4.1,
+      "fat": 2.9,
+      "carbs": 24.1,
+      "category": "其他"
     }
   },
   "records": {
