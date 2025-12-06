@@ -223,6 +223,13 @@
       "fat": 8.8,
       "carbs": 54.6,
       "category": "其他"
+    },
+    "肯瓊雞柳": {
+      "base": 1.0,
+      "protein": 12.6,
+      "fat": 4.6,
+      "carbs": 1.4,
+      "category": "其他"
     }
   },
   "records": {
