@@ -237,6 +237,13 @@
       "fat": 3.0,
       "carbs": 1.5,
       "category": "其他"
+    },
+    "牛家餐": {
+      "base": 1.0,
+      "protein": 66.0,
+      "fat": 32.0,
+      "carbs": 21.0,
+      "category": "其他"
     }
   },
   "records": {
