@@ -216,6 +216,13 @@
       "fat": 1.9,
       "carbs": 25.5,
       "category": "其他"
+    },
+    "全家海撰雙手卷": {
+      "base": 1.0,
+      "protein": 8.9,
+      "fat": 8.8,
+      "carbs": 54.6,
+      "category": "其他"
     }
   },
   "records": {
