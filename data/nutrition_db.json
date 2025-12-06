@@ -279,6 +279,13 @@
       "fat": 47.0,
       "carbs": 92.0,
       "category": "其他"
+    },
+    "好樂迪酸菜牛肉麵": {
+      "base": 1.0,
+      "protein": 30.0,
+      "fat": 20.0,
+      "carbs": 85.0,
+      "category": "其他"
     }
   },
   "records": {
