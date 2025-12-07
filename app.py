@@ -274,7 +274,7 @@ def parse_text(user_id, text):
             return "格式：加入 名稱 蛋白質 脂肪 碳水"
 
         food, p, fat, carbs = parts[1:4]
-        storage.add_record(user_id, food,  1, p, fat, carbs)
+        storage.add_record(user_id, food,  1.0, p, fat, carbs)
 
         return f"已記錄：{food} {weight}g\nP:{p:.1f} F:{fat:.1f} C:{carbs:.1f}"
         
