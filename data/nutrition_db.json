@@ -335,6 +335,13 @@
       "fat": 4.8,
       "carbs": 29.0,
       "category": "其他"
+    },
+    "七味雞胸": {
+      "base": 1.0,
+      "protein": 21.4,
+      "fat": 1.8,
+      "carbs": 1.1,
+      "category": "其他"
     }
   },
   "records": {
