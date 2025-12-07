@@ -182,7 +182,7 @@ def emoji_progress(pct):
 # =========================================================
 def parse_text(user_id, text):
     text = text.strip()
-    text = test.lower()
+    text = text.lower()
 
     # === 設目標 ===
     if text.startswith("目標"):
