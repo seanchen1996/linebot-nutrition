@@ -307,6 +307,13 @@
       "fat": 7.0,
       "carbs": 15.0,
       "category": "其他"
+    },
+    "烤地瓜": {
+      "base": 200.0,
+      "protein": 3.2,
+      "fat": 0.4,
+      "carbs": 69.0,
+      "category": "其他"
     }
   },
   "records": {
