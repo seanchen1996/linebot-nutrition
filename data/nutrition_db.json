@@ -286,6 +286,13 @@
       "fat": 20.0,
       "carbs": 85.0,
       "category": "其他"
+    },
+    "芋泥肉鬆蛋餅": {
+      "base": 1.0,
+      "protein": 10.3,
+      "fat": 11.2,
+      "carbs": 49.6,
+      "category": "其他"
     }
   },
   "records": {
