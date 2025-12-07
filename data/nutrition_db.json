@@ -314,6 +314,13 @@
       "fat": 0.4,
       "carbs": 69.0,
       "category": "其他"
+    },
+    "芝麻粉": {
+      "base": 25.0,
+      "protein": 5.0,
+      "fat": 13.0,
+      "carbs": 5.0,
+      "category": "其他"
     }
   },
   "records": {
