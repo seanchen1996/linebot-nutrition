@@ -321,6 +321,13 @@
       "fat": 13.0,
       "carbs": 5.0,
       "category": "其他"
+    },
+    "711珍味四果": {
+      "base": 1.0,
+      "protein": 5.5,
+      "fat": 19.6,
+      "carbs": 4.9,
+      "category": "其他"
     }
   },
   "records": {
