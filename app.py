@@ -182,6 +182,7 @@ def emoji_progress(pct):
 # =========================================================
 def parse_text(user_id, text):
     text = text.strip()
+    text = test.lower()
 
     # === 設目標 ===
     if text.startswith("目標"):
@@ -265,7 +266,18 @@ def parse_text(user_id, text):
         if text in ["刪除今日", "清除今日", "清除全部"]:
             removed = storage.clear_today(user_id)
             return f"已清除今日 {removed} 筆紀錄"
+            
+    # === 直接加入食物到今日===
+    if text.startswith("加入"):
+        parts = text.split()
+        if len(parts) < 4:
+            return "格式：加入 名稱 蛋白質 脂肪 碳水"
 
+        food, p, fat, carbs = parts[1:4]
+        storage.add_record(user_id, food,  1, p, fat, carbs)
+
+        return f"已記錄：{food} {weight}g\nP:{p:.1f} F:{fat:.1f} C:{carbs:.1f}"
+        
     # === 普通吃食物：食物 重量 ===
     parts = text.split()
     if len(parts) == 2:
@@ -288,14 +300,16 @@ def parse_text(user_id, text):
 
         return f"已記錄：{food} {weight}g\nP:{p:.1f} F:{fat:.1f} C:{c:.1f}"
 
+    
     # === Help ===
     return (
         "📘 指令列表\n"
         "目標 P F C\n"
+        "加入 食物 P F C\n"
         "新增 名稱 基準量 P F C [類別]\n"
         "list / 列表\n"
         "食物 重量\n"
-        "今日\n"
+        "今日 / 今日累計 / 今日攝取 / 今日累積\n"
         "刪除 編號\n"
         "刪除今日\n"
     )
