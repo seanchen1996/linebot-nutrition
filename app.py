@@ -270,10 +270,10 @@ def parse_text(user_id, text):
     # === 直接加入食物到今日===
     if text.startswith("加入"):
         parts = text.split()
-        if len(parts) < 4:
+        if len(parts) < 5:
             return "格式：加入 名稱 蛋白質 脂肪 碳水"
 
-        food, p, fat, carbs = parts[1:4]
+        food, p, fat, carbs = parts[1:5]
         storage.add_record(user_id, food,  1.0, p, fat, carbs)
 
         return f"已記錄：{food} {weight}g\nP:{p:.1f} F:{fat:.1f} C:{carbs:.1f}"
