@@ -328,6 +328,13 @@
       "fat": 19.6,
       "carbs": 4.9,
       "category": "其他"
+    },
+    "廣吉燕麥": {
+      "base": 50.0,
+      "protein": 6.2,
+      "fat": 4.8,
+      "carbs": 29.0,
+      "category": "其他"
     }
   },
   "records": {
