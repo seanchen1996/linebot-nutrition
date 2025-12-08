@@ -356,6 +356,13 @@
       "fat": 6.6,
       "carbs": 1.8,
       "category": "其他"
+    },
+    "711鮪魚雙手卷": {
+      "base": 1.0,
+      "protein": 9.6,
+      "fat": 13.9,
+      "carbs": 56.8,
+      "category": "其他"
     }
   },
   "records": {
