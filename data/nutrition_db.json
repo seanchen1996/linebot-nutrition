@@ -342,6 +342,13 @@
       "fat": 1.8,
       "carbs": 1.1,
       "category": "其他"
+    },
+    "石安蒸蛋": {
+      "base": 1.0,
+      "protein": 6.8,
+      "fat": 4.2,
+      "carbs": 3.3,
+      "category": "其他"
     }
   },
   "records": {
