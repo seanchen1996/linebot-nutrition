@@ -349,6 +349,13 @@
       "fat": 4.2,
       "carbs": 3.3,
       "category": "其他"
+    },
+    "鮭魚棒": {
+      "base": 1.0,
+      "protein": 10.2,
+      "fat": 6.6,
+      "carbs": 1.8,
+      "category": "其他"
     }
   },
   "records": {
