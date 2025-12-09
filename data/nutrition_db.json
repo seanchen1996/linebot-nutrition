@@ -363,6 +363,13 @@
       "fat": 13.9,
       "carbs": 56.8,
       "category": "其他"
+    },
+    "豆腐餅乾": {
+      "base": 30.0,
+      "protein": 2.2,
+      "fat": 6.3,
+      "carbs": 13.5,
+      "category": "其他"
     }
   },
   "records": {
