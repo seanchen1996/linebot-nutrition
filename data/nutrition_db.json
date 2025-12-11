@@ -370,6 +370,13 @@
       "fat": 6.3,
       "carbs": 13.5,
       "category": "其他"
+    },
+    "濃豆漿": {
+      "base": 1.0,
+      "protein": 19.1,
+      "fat": 9.8,
+      "carbs": 7.9,
+      "category": "其他"
     }
   },
   "records": {
