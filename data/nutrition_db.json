@@ -384,6 +384,13 @@
       "fat": 0.5,
       "carbs": 27.4,
       "category": "其他"
+    },
+    "芝麻歐蕾高蛋白": {
+      "base": 1.0,
+      "protein": 20.0,
+      "fat": 3.7,
+      "carbs": 5.8,
+      "category": "其他"
     }
   },
   "records": {
