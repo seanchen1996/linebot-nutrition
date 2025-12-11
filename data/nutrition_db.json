@@ -377,6 +377,13 @@
       "fat": 9.8,
       "carbs": 7.9,
       "category": "其他"
+    },
+    "711蒸地瓜": {
+      "base": 100.0,
+      "protein": 1.8,
+      "fat": 0.5,
+      "carbs": 27.4,
+      "category": "其他"
     }
   },
   "records": {
