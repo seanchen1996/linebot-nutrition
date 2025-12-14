@@ -412,6 +412,13 @@
       "fat": 23.5,
       "carbs": 0.0,
       "category": "其他"
+    },
+    "白米": {
+      "base": 50.0,
+      "protein": 3.5,
+      "fat": 0.3,
+      "carbs": 38.9,
+      "category": "其他"
     }
   },
   "records": {
