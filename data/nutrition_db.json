@@ -419,6 +419,13 @@
       "fat": 0.3,
       "carbs": 38.9,
       "category": "其他"
+    },
+    "鮭魚鮭魚卵飯糰": {
+      "base": 1.0,
+      "protein": 6.4,
+      "fat": 4.5,
+      "carbs": 39.1,
+      "category": "其他"
     }
   },
   "records": {
