@@ -433,6 +433,13 @@
       "fat": 3.7,
       "carbs": 4.8,
       "category": "其他"
+    },
+    "711肉絲黃金蛋炒飯": {
+      "base": 1.0,
+      "protein": 14.6,
+      "fat": 17.0,
+      "carbs": 92.3,
+      "category": "其他"
     }
   },
   "records": {
