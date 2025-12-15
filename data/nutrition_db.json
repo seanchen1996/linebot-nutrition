@@ -426,6 +426,13 @@
       "fat": 4.5,
       "carbs": 39.1,
       "category": "其他"
+    },
+    "瑞穗鮮乳": {
+      "base": 100.0,
+      "protein": 3.2,
+      "fat": 3.7,
+      "carbs": 4.8,
+      "category": "其他"
     }
   },
   "records": {
