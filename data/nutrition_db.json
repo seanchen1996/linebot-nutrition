@@ -447,6 +447,13 @@
       "fat": 9.8,
       "carbs": 7.9,
       "category": "其他"
+    },
+    "秋鮭雙手捲": {
+      "base": 1.0,
+      "protein": 9.6,
+      "fat": 13.9,
+      "carbs": 56.8,
+      "category": "其他"
     }
   },
   "records": {
