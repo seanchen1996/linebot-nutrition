@@ -454,6 +454,13 @@
       "fat": 13.9,
       "carbs": 56.8,
       "category": "其他"
+    },
+    "橄欖油": {
+      "base": 10.0,
+      "protein": 0.0,
+      "fat": 9.1,
+      "carbs": 0.0,
+      "category": "其他"
     }
   },
   "records": {
