@@ -461,6 +461,13 @@
       "fat": 9.1,
       "carbs": 0.0,
       "category": "其他"
+    },
+    "711滑蛋牛肉燴飯": {
+      "base": 1.0,
+      "protein": 21.1,
+      "fat": 13.8,
+      "carbs": 95.0,
+      "category": "其他"
     }
   },
   "records": {
