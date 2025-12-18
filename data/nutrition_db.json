@@ -468,6 +468,13 @@
       "fat": 13.8,
       "carbs": 95.0,
       "category": "其他"
+    },
+    "711吉士豬肉堡加蛋": {
+      "base": 1.0,
+      "protein": 16.2,
+      "fat": 11.0,
+      "carbs": 28.0,
+      "category": "其他"
     }
   },
   "records": {
