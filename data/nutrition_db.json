@@ -475,6 +475,13 @@
       "fat": 11.0,
       "carbs": 28.0,
       "category": "其他"
+    },
+    "711炙燒雙拼便當": {
+      "base": 1.0,
+      "protein": 21.5,
+      "fat": 16.1,
+      "carbs": 111.4,
+      "category": "其他"
     }
   },
   "records": {
