@@ -482,6 +482,13 @@
       "fat": 16.1,
       "carbs": 111.4,
       "category": "其他"
+    },
+    "711麻油豬肉飯": {
+      "base": 1.0,
+      "protein": 18.8,
+      "fat": 13.2,
+      "carbs": 105.2,
+      "category": "其他"
     }
   },
   "records": {
