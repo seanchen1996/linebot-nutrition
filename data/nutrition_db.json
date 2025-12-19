@@ -489,6 +489,13 @@
       "fat": 13.2,
       "carbs": 105.2,
       "category": "其他"
+    },
+    "起司馬鈴薯": {
+      "base": 1.0,
+      "protein": 7.9,
+      "fat": 10.1,
+      "carbs": 2.33,
+      "category": "其他"
     }
   },
   "records": {
