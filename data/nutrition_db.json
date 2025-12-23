@@ -496,6 +496,13 @@
       "fat": 10.1,
       "carbs": 23.3,
       "category": "其他"
+    },
+    "剝皮辣椒滑蛋燴飯": {
+      "base": 1.0,
+      "protein": 19.4,
+      "fat": 19.4,
+      "carbs": 87.8,
+      "category": "其他"
     }
   },
   "records": {
