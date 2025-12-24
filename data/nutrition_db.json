@@ -503,6 +503,13 @@
       "fat": 19.4,
       "carbs": 87.8,
       "category": "其他"
+    },
+    "711草莓蛋白": {
+      "base": 1.0,
+      "protein": 21.8,
+      "fat": 1.1,
+      "carbs": 27.8,
+      "category": "其他"
     }
   },
   "records": {
