@@ -531,6 +531,13 @@
       "fat": 9.1,
       "carbs": 11.4,
       "category": "其他"
+    },
+    "肯德基台酒紙包雞": {
+      "base": 1.0,
+      "protein": 49.5,
+      "fat": 25.1,
+      "carbs": 10.2,
+      "category": "其他"
     }
   },
   "records": {
