@@ -524,6 +524,13 @@
       "fat": 11.4,
       "carbs": 17.3,
       "category": "其他"
+    },
+    "肯德基雞塊": {
+      "base": 4.0,
+      "protein": 9.2,
+      "fat": 9.1,
+      "carbs": 11.4,
+      "category": "其他"
     }
   },
   "records": {
