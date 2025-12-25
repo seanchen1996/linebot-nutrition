@@ -510,6 +510,13 @@
       "fat": 1.1,
       "carbs": 27.8,
       "category": "其他"
+    },
+    "肯德基雞汁飯": {
+      "base": 1.0,
+      "protein": 4.8,
+      "fat": 4.5,
+      "carbs": 49.8,
+      "category": "其他"
     }
   },
   "records": {
