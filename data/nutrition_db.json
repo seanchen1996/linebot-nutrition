@@ -517,6 +517,13 @@
       "fat": 4.5,
       "carbs": 49.8,
       "category": "其他"
+    },
+    "肯德基蛋撻": {
+      "base": 1.0,
+      "protein": 2.6,
+      "fat": 11.4,
+      "carbs": 17.3,
+      "category": "其他"
     }
   },
   "records": {
