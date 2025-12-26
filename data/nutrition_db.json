@@ -545,6 +545,13 @@
       "fat": 3.9,
       "carbs": 2.5,
       "category": "其他"
+    },
+    "統一黑豆漿": {
+      "base": 1.0,
+      "protein": 15.2,
+      "fat": 8.4,
+      "carbs": 6.8,
+      "category": "其他"
     }
   },
   "records": {
