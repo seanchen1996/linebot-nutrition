@@ -538,6 +538,13 @@
       "fat": 25.1,
       "carbs": 10.2,
       "category": "其他"
+    },
+    "711義式雞胸": {
+      "base": 1.0,
+      "protein": 26.5,
+      "fat": 3.9,
+      "carbs": 2.5,
+      "category": "其他"
     }
   },
   "records": {
