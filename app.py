@@ -240,6 +240,9 @@ def parse_text(user_id, text):
             t_c = target["carbs"]
         else:
             t_p = t_f = t_c = 100
+        diff_p = total_p - t_p
+        diff_f = total_f - t_f
+        diff_c = total_c - t_c
 
         out = f"📅 今日 {datetime.utcnow().date()}\n\n"
         for r in recs:
@@ -249,6 +252,8 @@ def parse_text(user_id, text):
         out += f"P: {total_p:.1f}/{t_p}  {emoji_progress(total_p/t_p*100)}\n"
         out += f"F: {total_f:.1f}/{t_f}  {emoji_progress(total_f/t_f*100)}\n"
         out += f"C: {total_c:.1f}/{t_c}  {emoji_progress(total_c/t_c*100)}\n"
+        out += "\n=== 差 ===\n"
+        out += f"P: {diff_p:.1f} F:{diff_f:.1f} C:{diff_c:.1f} \n"
 
         return out
 
