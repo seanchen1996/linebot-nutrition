@@ -552,6 +552,13 @@
       "fat": 8.4,
       "carbs": 6.8,
       "category": "其他"
+    },
+    "yoiis優格": {
+      "base": 100.0,
+      "protein": 4.2,
+      "fat": 3.9,
+      "carbs": 5.8,
+      "category": "其他"
     }
   },
   "records": {
